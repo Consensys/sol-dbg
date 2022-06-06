@@ -1,0 +1,340 @@
+{
+    "initialState": {
+        "accounts": {
+            "0xAaaaAaAAaaaAAaAAaAaaaaAAAAAaAaaaAaAaaAA0": {
+                "nonce": 0,
+                "balance": "0x0000000000000000000000f000000000",
+                "code": "",
+                "storage": {}
+            },
+            "0xAaAaaAAAaAaaAaAaAaaAAaAaAAAAAaAAAaaAaAa2": {
+                "nonce": 0,
+                "balance": "0x0000000000000000000000f000000000",
+                "code": "",
+                "storage": {}
+            },
+            "0xafFEaFFEAFfeAfFEAffeaFfEAfFEaffeafFeAFfE": {
+                "nonce": 0,
+                "balance": "0x0000000000000000000000f000000000",
+                "code": "",
+                "storage": {}
+            }
+        }
+    },
+    "steps": [
+        {
+            "address": "0x0000000000000000000000000000000000000000",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x608060405234801561001057600080fd5b506040516109a73803806109a78339818101604052810190610032919061007a565b80600081905550506100a7565b600080fd5b6000819050919050565b61005781610044565b811461006257600080fd5b50565b6000815190506100748161004e565b92915050565b6000602082840312156100905761008f61003f565b5b600061009e84828501610065565b91505092915050565b6108f1806100b66000396000f3fe608060405234801561001057600080fd5b50600436106100885760003560e01c806358d20abd1161005b57806358d20abd146100fd5780637ca1792e14610119578063982520d114610135578063cbf423711461015157610088565b8063052c57631461008d57806315f35693146100a95780631fa7b64e146100c557806335f843f5146100e1575b600080fd5b6100a760048036038101906100a2919061041a565b61016d565b005b6100c360048036038101906100be91906104b6565b6101fe565b005b6100df60048036038101906100da919061052e565b610225565b005b6100fb60048036038101906100f691906105b9565b61025d565b005b610117600480360381019061011291906105b9565b61026a565b005b610133600480360381019061012e9190610676565b6102a9565b005b61014f600480360381019061014a9190610707565b610366565b005b61016b60048036038101906101669190610780565b6103a6565b005b60005b60078110156101fa57602a60f81b7effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff19168282600781106101b3576101b26107ad565b5b1a60f81b7effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916146101e7576101e66107dc565b5b80806101f290610844565b915050610170565b5050565b600082600f0b608083600f0b901b17905080841461021f5761021e6107dc565b5b50505050565b600260038111156102395761023861088c565b5b81600381111561024c5761024b61088c565b5b1461025a576102596107dc565b5b50565b6102673082610366565b50565b3073ffffffffffffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffffffffffffffffff16036102a6576102a56107dc565b5b50565b60008183189050831561030f5764ffffffffff60d81b7affffffffffffffffffffffffffffffffffffffffffffffffffffff1916817affffffffffffffffffffffffffffffffffffffffffffffffffffff19161461030a576103096107dc565b5b610360565b600060d81b7affffffffffffffffffffffffffffffffffffffffffffffffffffff1916817affffffffffffffffffffffffffffffffffffffffffffffffffffff19161461035f5761035e6107dc565b5b5b50505050565b8173ffffffffffffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffffffffffffffffff16036103a2576103a16107dc565b5b5050565b60008160010b136103ba576103b96107dc565b5b50565b600080fd5b60007fffffffffffffff0000000000000000000000000000000000000000000000000082169050919050565b6103f7816103c2565b811461040257600080fd5b50565b600081359050610414816103ee565b92915050565b6000602082840312156104305761042f6103bd565b5b600061043e84828501610405565b91505092915050565b6000819050919050565b61045a81610447565b811461046557600080fd5b50565b60008135905061047781610451565b92915050565b600081600f0b9050919050565b6104938161047d565b811461049e57600080fd5b50565b6000813590506104b08161048a565b92915050565b6000806000606084860312156104cf576104ce6103bd565b5b60006104dd86828701610468565b93505060206104ee868287016104a1565b92505060406104ff868287016104a1565b9150509250925092565b6004811061051657600080fd5b50565b60008135905061052881610509565b92915050565b600060208284031215610544576105436103bd565b5b600061055284828501610519565b91505092915050565b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b60006105868261055b565b9050919050565b6105968161057b565b81146105a157600080fd5b50565b6000813590506105b38161058d565b92915050565b6000602082840312156105cf576105ce6103bd565b5b60006105dd848285016105a4565b91505092915050565b60008115159050919050565b6105fb816105e6565b811461060657600080fd5b50565b600081359050610618816105f2565b92915050565b60007fffffffffff00000000000000000000000000000000000000000000000000000082169050919050565b6106538161061e565b811461065e57600080fd5b50565b6000813590506106708161064a565b92915050565b60008060006060848603121561068f5761068e6103bd565b5b600061069d86828701610609565b93505060206106ae86828701610661565b92505060406106bf86828701610661565b9150509250925092565b60006106d48261057b565b9050919050565b6106e4816106c9565b81146106ef57600080fd5b50565b600081359050610701816106db565b92915050565b6000806040838503121561071e5761071d6103bd565b5b600061072c858286016106f2565b925050602061073d858286016105a4565b9150509250929050565b60008160010b9050919050565b61075d81610747565b811461076857600080fd5b50565b60008135905061077a81610754565b92915050565b600060208284031215610796576107956103bd565b5b60006107a48482850161076b565b91505092915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b7f4e487b7100000000000000000000000000000000000000000000000000000000600052600160045260246000fd5b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000819050919050565b600061084f8261083a565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036108815761088061080b565b5b600182019050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602160045260246000fdfea2646970667358221220706ff13b5ec64c1b40b68c624fd724e03d15e05cbc2e7d31d0536f5dd6d050c564736f6c634300080d00330000000000000000000000000000000000000000000000000000000000000001",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x1",
+            "blockTime": "0x1",
+            "result": {
+                "kind": "contract_created",
+                "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c"
+            }
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x58d20abd0000000000000000000000000000000000000000000000000000000000000000",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            }
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x58d20abd000000000000000000000000f084a83954ce917799e0b4dbd03934a2ea65888c",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "revert"
+            },
+            "errorString": "assert(a != address(this))",
+            "errorStack": [
+                "test/samples/local/primitive_datatypes/contracts/main.sol Failing.wasntMe(0xf084a83954ce917799e0b4dbd03934a2ea65888c)"
+            ]
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x052c57632a2a2a2a2a2a2a00000000000000000000000000000000000000000000000000",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            }
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x052c57632a2a2a2a2a2a2b00000000000000000000000000000000000000000000000000",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "revert"
+            },
+            "errorString": "assert(b[i] == bytes1(0x2a))",
+            "errorStack": [
+                "test/samples/local/primitive_datatypes/contracts/main.sol Failing.isAll42(2a2a2a2a2a2a2b)"
+            ]
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x7ca1792e0000000000000000000000000000000000000000000000000000000000000001ffffffffff0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            }
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x7ca1792e0000000000000000000000000000000000000000000000000000000000000001ffffffffff0000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "revert"
+            },
+            "errorString": "assert(c == bytes5(uint40((1 << 40) - 1)))",
+            "errorStack": [
+                "test/samples/local/primitive_datatypes/contracts/main.sol Failing.areDifferent(true, ffffffffff, 0100000000)"
+            ]
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x7ca1792e00000000000000000000000000000000000000000000000000000000000000000a0b0c0d0e0000000000000000000000000000000000000000000000000000000a0b0c0d0e000000000000000000000000000000000000000000000000000000",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            }
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x7ca1792e00000000000000000000000000000000000000000000000000000000000000001a0b0c0d0e0000000000000000000000000000000000000000000000000000000a0b0c0d0e000000000000000000000000000000000000000000000000000000",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "revert"
+            },
+            "errorString": "assert(c == bytes5(uint40(0x0)))",
+            "errorStack": [
+                "test/samples/local/primitive_datatypes/contracts/main.sol Failing.areDifferent(false, 1a0b0c0d0e, 0a0b0c0d0e)"
+            ]
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x15f3569339784be82ff63ce8af0a248c881a695847c5b75402bb285969f91382c77a4c5f0000000000000000000000000000000047c5b75402bb285969f91382c77a4c5f0000000000000000000000000000000039784be82ff63ce8af0a248c881a6958",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            }
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x15f3569339784be82ff63ce8af0a248c881a695847c5b75402bb285969f91382c77a4c5f0000000000000000000000000000000047c5b75402bb285969f91382c77a4c5f0000000000000000000000000000000039784be82ff63ce8af0a248c881a6959",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "revert"
+            },
+            "errorString": "assert(n == t)",
+            "errorStack": [
+                "test/samples/local/primitive_datatypes/contracts/main.sol Failing.isConcat(25994377907754200443621621894611996396710692477276620992200926367528997506143, 95401788518828737164849068496112995423, 76390610959261840103023727920302156121)"
+            ]
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x1fa7b64e0000000000000000000000000000000000000000000000000000000000000002",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            }
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x1fa7b64e0000000000000000000000000000000000000000000000000000000000000003",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "revert"
+            },
+            "errorString": "assert(e == E.O3)",
+            "errorStack": [
+                "test/samples/local/primitive_datatypes/contracts/main.sol Failing.shouldBeO3(E.O4)"
+            ]
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x35f843f5000000000000000000000000f084a83954ce917799e0b4dbd03934a2ea65888d",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            }
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x35f843f5000000000000000000000000f084a83954ce917799e0b4dbd03934a2ea65888c",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "revert"
+            },
+            "errorString": "assert(a != address(f))",
+            "errorStack": [
+                "test/samples/local/primitive_datatypes/contracts/main.sol Failing.checkItsNotMe(0xf084a83954ce917799e0b4dbd03934a2ea65888c, 0xf084a83954ce917799e0b4dbd03934a2ea65888c)",
+                "test/samples/local/primitive_datatypes/contracts/main.sol Failing.wasntMe2(0xf084a83954ce917799e0b4dbd03934a2ea65888c)"
+            ]
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0xcbf423710000000000000000000000000000000000000000000000000000000000000001",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            }
+        },
+        {
+            "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0xcbf42371ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": "0x2",
+            "blockTime": "0x2",
+            "result": {
+                "kind": "revert"
+            },
+            "errorString": "assert(DummyInt16.unwrap(t) > 0)",
+            "errorStack": [
+                "test/samples/local/primitive_datatypes/contracts/main.sol Failing.isPositive(-1)"
+            ]
+        }
+    ]
+}

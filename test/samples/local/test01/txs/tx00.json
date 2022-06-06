@@ -1,0 +1,80 @@
+{
+  "initialState": {
+    "accounts": {
+      "0xAaaaAaAAaaaAAaAAaAaaaaAAAAAaAaaaAaAaaAA0": {
+        "nonce": 0,
+        "balance": "0x0000000000000000000000f000000000",
+        "code": "",
+        "storage": {}
+      },
+      "0xAaAaaAAAaAaaAaAaAaaAAaAaAAAAAaAAAaaAaAa2": {
+        "nonce": 0,
+        "balance": "0x0000000000000000000000f000000000",
+        "code": "",
+        "storage": {}
+      },
+      "0xafFEaFFEAFfeAfFEAffeaFfEAfFEaffeafFeAFfE": {
+        "nonce": 0,
+        "balance": "0x0000000000000000000000f000000000",
+        "code": "",
+        "storage": {}
+      }
+    }
+  },
+  "steps": [
+    {
+      "address": "0x0000000000000000000000000000000000000000",
+      "gasLimit": "0xff0000",
+      "gasPrice": "0x1",
+      "input": "0x608060405234801561001057600080fd5b506040516102cf3803806102cf8339818101604052810190610032919061007a565b80600081905550506100a7565b600080fd5b6000819050919050565b61005781610044565b811461006257600080fd5b50565b6000815190506100748161004e565b92915050565b6000602082840312156100905761008f61003f565b5b600061009e84828501610065565b91505092915050565b610219806100b66000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c8063812600df14610030575b600080fd5b61004a600480360381019061004591906100d8565b610060565b6040516100579190610114565b60405180910390f35b60008082600054610071919061015e565b6000819055905080600081905550606460005410610092576100916101b4565b5b600054915050919050565b600080fd5b6000819050919050565b6100b5816100a2565b81146100c057600080fd5b50565b6000813590506100d2816100ac565b92915050565b6000602082840312156100ee576100ed61009d565b5b60006100fc848285016100c3565b91505092915050565b61010e816100a2565b82525050565b60006020820190506101296000830184610105565b92915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000610169826100a2565b9150610174836100a2565b9250827fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff038211156101a9576101a861012f565b5b828201905092915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052600160045260246000fdfea2646970667358221220e18dc2200b07f3fa1a43009b43f64eec62b0a8a11dce54d8a792ccdb383352d964736f6c634300080d00330000000000000000000000000000000000000000000000000000000000000001",
+      "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+      "value": "0x0",
+      "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+      "blockDifficulty": "0xc",
+      "blockGasLimit": "0xff0000",
+      "blockNumber": "0x1",
+      "blockTime": "0x1",
+      "result": {
+        "kind": "contract_created",
+        "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c"
+      }
+    },
+    {
+      "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+      "gasLimit": "0xff0000",
+      "gasPrice": "0x1",
+      "input": "0x812600df0000000000000000000000000000000000000000000000000000000000000062",
+      "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+      "value": "0x0",
+      "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+      "blockDifficulty": "0xc",
+      "blockGasLimit": "0xff0000",
+      "blockNumber": "0x2",
+      "blockTime": "0x2",
+      "result": {
+        "kind": "value_returned",
+        "value": "0000000000000000000000000000000000000000000000000000000000000063"
+      }
+    },
+    {
+      "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+      "gasLimit": "0xff0000",
+      "gasPrice": "0x1",
+      "input": "0x812600df0000000000000000000000000000000000000000000000000000000000000001",
+      "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+      "value": "0x0",
+      "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+      "blockDifficulty": "0xc",
+      "blockGasLimit": "0xff0000",
+      "blockNumber": "0x3",
+      "blockTime": "0x3",
+      "result": {
+        "kind": "revert"
+      },
+      "errorString": "assert(x < 100)",
+      "errorStack": [
+        "test/samples/local/test01/contracts/main.sol Failing.inc(1)"
+      ]
+    }
+  ]
+}

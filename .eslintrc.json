@@ -1,0 +1,37 @@
+{
+    "parser": "@typescript-eslint/parser",
+    "env": {
+        "node": true,
+        "es6": true
+    },
+    "plugins": ["@typescript-eslint"],
+    "extends": [
+        "eslint:recommended",
+        "plugin:@typescript-eslint/eslint-recommended",
+        "plugin:@typescript-eslint/recommended",
+        "plugin:prettier/recommended",
+        "prettier"
+    ],
+    "rules": {
+        "no-var": "error",
+        "no-constant-condition": "off",
+        "comma-dangle": ["error", "never"],
+        "no-prototype-builtins": "off",
+
+        "@typescript-eslint/no-explicit-any": "off",
+        "@typescript-eslint/no-var-requires": "off",
+        "@typescript-eslint/no-this-alias": "off",
+        "@typescript-eslint/explicit-function-return-type": "off",
+        "@typescript-eslint/array-type": ["error", { "default": "array-simple" }],
+        "@typescript-eslint/explicit-module-boundary-types": [
+            "error",
+            { "allowArgumentsExplicitlyTypedAsAny": true }
+        ]
+    },
+    "ignorePatterns": [
+        "src/types/typeStrings/typeString_parser_header.ts",
+        "src/types/typeStrings/typeString_parser.ts",
+        "src/compile/inference/file_level_definitions_parser_header.ts",
+        "src/compile/inference/file_level_definitions_parser.ts"
+    ]
+}
