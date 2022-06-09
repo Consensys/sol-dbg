@@ -1,5 +1,5 @@
 [![NodeJS CI](https://github.com/ConsenSys/sol-dbg/actions/workflows/node.js.yml/badge.svg)](https://github.com/ConsenSys/sol-dbg/actions/workflows/node.js.yml)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![License: Apache V2.0](https://img.shields.io/badge/License-Apachev2-blue.svg)](https://apache.org/licenses/LICENSE-2.0)
 
 # sol-dbg
 
@@ -90,4 +90,11 @@ export interface StepState {
 
 # Stack Traces
 
-TODO
+A stack trace is a list of stack frames. There are 2 kinds of stack frames - an `ExternalFrame` and an `InternalCallFrame`. As the name suggests,
+ an `ExternalCall` frame corresponds to an external call, and an `InternalCallFrame` corresponds to a call for an internal function in a contract.
+
+ All frames have an optional `callee` field, which is either an `ASTNode` or undefined. `callee` is undefined when we don't have enough debugging information to determine the target of this call. Otherwise its the ASTNode that corresponds to this call. This is usually a `FunctionDefinition`, but can sometimes be other nodes. For example when calling a public state variable getter the `callee` is a `VariableDeclaration`. When calling an implicit constructor of a contract, the `callee` will be a `ContractDefinition`. Also we are planning on adding support for recognizing compiler-generated functions, in which case the `callee` will be a `YulFunctionDefinition`.
+
+ All frames have an optional `arguments` field, with any decoded Solidity-level arguments. Note that the debugger will do its best to decode as many arguments as possible, and will attempt to decode an argument even if some other arguments fail. Arguments decoding may fail due to missing debugging information, in which case either the whole `arguments` array, or some entries in it may be undefined.
+
+ Finally note that for a given external call `Contract.Function()` we will have both an `ExternalFrame` for `Contract.Function()` and an internal frame for `Contract.Function()` (if we have enough debug info). Its up to the users of this library to filter out those duplicates.
