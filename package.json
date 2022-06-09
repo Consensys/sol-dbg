@@ -1,7 +1,7 @@
 {
     "name": "sol-dbg",
     "version": "0.0.0",
-    "description": "Proof of concept wrapper around the remix debugger",
+    "description": "Small Solidity-level debugger built around EthereumJS",
     "keywords": [],
     "files": [
         "dist"
@@ -54,8 +54,8 @@
         "typedoc": "^0.22.10",
         "typescript": "^4.5.4"
     },
-    "homepage": "TODO",
-    "bugs": "TODO",
+    "homepage": "https://github.com/ConsenSys/sol-dbg",
+    "bugs": "https://github.com/ConsenSys/sol-dbg/issues",
     "repository": "https://github.com/ConsenSys/sol-dbg",
     "license": "See LICENCE file."
 }
