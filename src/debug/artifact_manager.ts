@@ -1,3 +1,4 @@
+import { PrefixedHexString } from "ethereumjs-util";
 import {
     assert,
     ASTContext,
@@ -46,6 +47,7 @@ export interface ContractInfo {
     ast: ContractDefinition | undefined;
     bytecode: BytecodeInfo;
     deployedBytecode: BytecodeInfo;
+    mdHash: PrefixedHexString;
 }
 
 export interface ArtifactInfo {
@@ -200,6 +202,13 @@ export class ArtifactManager implements IArtifactManager {
                         }
                     }
 
+                    const hash = getCodeHash(contractArtifact.evm.deployedBytecode.object);
+
+                    assert(
+                        hash !== undefined,
+                        `Couldn't find md in bytecode for ${contractName} from ${fileName}`
+                    );
+
                     const contractInfo: ContractInfo = {
                         artifact: artifactInfo,
                         contractArtifact: contractArtifact,
@@ -223,17 +232,11 @@ export class ArtifactManager implements IArtifactManager {
                             offsetToIndexMap: buildOffsetToIndexMap(
                                 contractArtifact.evm.deployedBytecode.object
                             )
-                        }
+                        },
+                        mdHash: hash[1]
                     };
 
                     this._contracts.push(contractInfo);
-
-                    const hash = getCodeHash(contractArtifact.evm.deployedBytecode.object);
-
-                    assert(
-                        hash !== undefined,
-                        `Couldn't find md in bytecode for ${contractName} from ${fileName}`
-                    );
 
                     this._mdHashToContractInfo.set(hash[1], contractInfo);
                 }

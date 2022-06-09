@@ -201,6 +201,7 @@ export interface StepState extends StepVMState {
     src: DecodedBytecodeSourceMapEntry | undefined;
     astNode: ASTNode | undefined;
     emittedEvent: EventDesc | undefined;
+    contractInfo: ContractInfo | undefined;
 }
 
 /**
@@ -569,7 +570,8 @@ export class SolTxDebugger {
             stack: [...stack],
             src,
             astNode,
-            emittedEvent
+            emittedEvent,
+            contractInfo: curExtFrame.info
         };
     }
 
