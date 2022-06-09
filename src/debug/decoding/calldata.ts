@@ -16,7 +16,7 @@ import {
     UserDefinedType,
     variableDeclarationToTypeNode
 } from "solc-typed-ast";
-import { CalldataLocation, DataLocation, DataLocationKind } from "..";
+import { CalldataLocation, changeToLocation, DataLocation, DataLocationKind } from "..";
 import {
     bigEndianBufToBigint,
     checkAddrOoB,
@@ -25,7 +25,6 @@ import {
     Memory,
     uint256
 } from "../..";
-import { changeToLocation } from "../abi";
 
 function cd_decodeInt(
     typ: IntType,

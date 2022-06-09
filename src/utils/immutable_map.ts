@@ -4,9 +4,11 @@ export class ImmMap<KeyT, ValT> {
 
     static fromEntries<K, V>(arg: Iterable<[K, V]>): ImmMap<K, V> {
         const res = new ImmMap<K, V>(undefined);
+
         for (const [k, v] of arg) {
             res.innerM.set(k, v);
         }
+
         return res;
     }
 
@@ -39,15 +41,19 @@ export class ImmMap<KeyT, ValT> {
 
     set(key: KeyT, val: ValT): this {
         const newMap = new ImmMap<KeyT, ValT>(this);
+
         newMap.innerM.set(key, val);
+
         return newMap as this;
     }
 
     setMany(entries: Iterable<[KeyT, ValT]>): this {
         const newMap = new ImmMap<KeyT, ValT>(this);
+
         for (const [key, val] of entries) {
             newMap.innerM.set(key, val);
         }
+
         return newMap as this;
     }
 

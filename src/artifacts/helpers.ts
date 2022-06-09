@@ -1,7 +1,7 @@
 import { Decoder } from "cbor";
 import { assert } from "solc-typed-ast";
-import { HexString, PartialSolcOutput } from ".";
 import { toHexString } from "..";
+import { HexString, PartialSolcOutput } from "./solc";
 
 interface ContractMdStruct {
     // Prior to 0.6.x the swarm hash field was called bzzr0

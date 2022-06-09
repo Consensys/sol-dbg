@@ -15,23 +15,29 @@ import {
     VariableDeclaration,
     variableDeclarationToTypeNode
 } from "solc-typed-ast";
-import { createsContract, EVMOpInfo, getOffsetSrc, getOpInfo, increasesDepth, OPCODES } from ".";
-import { DecodedBytecodeSourceMapEntry } from "..";
-import { HexString } from "../artifacts";
 import {
     bigEndianBufToBigint,
     bnToBigInt,
+    DecodedBytecodeSourceMapEntry,
     getFunctionSelector,
+    HexString,
     ImmMap,
     padStart,
     wordToAddress,
     ZERO_ADDRESS,
     ZERO_ADDRESS_STRING
-} from "../utils";
+} from "..";
 import { decodeMsgData } from "./abi";
-import { ContractInfo, IArtifactManager } from "./artifact_manager";
+import { ContractInfo, getOffsetSrc, IArtifactManager } from "./artifact_manager";
 import { isCalldataType2Slots } from "./decoding";
-import { changesMemory } from "./opcodes";
+import {
+    changesMemory,
+    createsContract,
+    EVMOpInfo,
+    getOpInfo,
+    increasesDepth,
+    OPCODES
+} from "./opcodes";
 
 export enum FrameKind {
     Call = "call",
@@ -243,6 +249,7 @@ async function getStorage(manager: StateManager, addr: Address): Promise<Storage
 
     for (const [keyStr, valStr] of Object.entries(rawStorage)) {
         const valBuf = padStart(rlp.decode(Buffer.from(valStr, "hex")), 32, 0);
+
         storageEntries.push([BigInt("0x" + keyStr), valBuf]);
     }
 
@@ -312,10 +319,12 @@ export class SolTxDebugger {
         this.vm.stateManager.putContractCode = async (address: Address, code: Buffer) => {
             if (code.length > 0) {
                 const info = this.buildDeployedContractInfo(address, code);
+
                 assert(
                     !this.deployedContracts.has(info.address),
                     `Overwriting contract at address ${info.address}`
                 );
+
                 this.deployedContracts.set(info.address, info);
             }
 
@@ -456,6 +465,7 @@ export class SolTxDebugger {
             };
 
             stack.push(newFrame);
+
             return;
         }
 
@@ -491,6 +501,7 @@ export class SolTxDebugger {
         }
 
         const op = getOpInfo(step.opcode.name);
+
         let code: Buffer;
 
         if (lastStep === undefined || !lastStep.codeAddress.equals(step.codeAddress)) {
@@ -500,6 +511,7 @@ export class SolTxDebugger {
         }
 
         let storage: Storage;
+
         if (lastStep === undefined || lastStep.op.opcode === OPCODES.SSTORE) {
             storage = await getStorage(step.stateManager, step.address);
         } else {
@@ -527,9 +539,12 @@ export class SolTxDebugger {
         };
 
         await this.adjustStackFrame(stack, vmState, trace);
-        const curExtFrame: ExternalFrame = lastExternalFrame(stack);
+
+        const curExtFrame = lastExternalFrame(stack);
+
         let src: DecodedBytecodeSourceMapEntry | undefined;
         let astNode: ASTNode | undefined;
+
         try {
             [src, astNode] = this.decodeSourceLoc(step.pc, curExtFrame);
         } catch (e) {
@@ -585,6 +600,7 @@ export class SolTxDebugger {
         const receiver = tx.to === undefined ? ZERO_ADDRESS_STRING : tx.to.toString();
         const isCreation = receiver === ZERO_ADDRESS_STRING;
         const stack: Frame[] = [];
+
         let curFrame: Frame;
 
         if (isCreation) {
@@ -594,6 +610,7 @@ export class SolTxDebugger {
             // TODO: This assert is kinda stupid. Because of it we need to use only the internal VM instead of accepting any VM (so that
             // we know about all contracts deployed already.) Should re-write the code so I don't need this.
             assert(receiverInfo !== undefined, ``);
+
             curFrame = await this.makeCallFrame(
                 sender,
                 tx.to as Address,
@@ -606,6 +623,7 @@ export class SolTxDebugger {
         stack.push(curFrame);
 
         const trace: StepState[] = [];
+
         vm.on("step", async (step: InterpreterStep, next: any) => {
             const curStep = await this.processRawTraceStep(vm, step, trace, stack);
             trace.push(curStep);
@@ -629,6 +647,7 @@ export class SolTxDebugger {
      */
     private buildDeployedContractInfo(address: Address, code: Buffer): DeployedContractInfo {
         let info: ContractInfo | undefined;
+
         try {
             info = this.artifactManager.getContractFromDeployedBytecode(code);
         } catch (e) {

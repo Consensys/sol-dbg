@@ -1,5 +1,4 @@
-/// TODO: This code was copied from scribble. Should reduce
-/// code duplication!!!
+// TODO: This code was copied from Scribble. Should reduce code duplication.
 export type DecodedBytecodeSourceMapEntry = {
     start: number;
     length: number;

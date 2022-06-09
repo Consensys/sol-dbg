@@ -1,12 +1,11 @@
 import {
-    PointerType,
-    DataLocation as SolDataLocation,
-    TypeNode,
     ArrayType,
-    assert
+    assert,
+    DataLocation as SolDataLocation,
+    PointerType,
+    TypeNode
 } from "solc-typed-ast";
-import { st_decodeInt } from "./stack";
-import { mem_decodeValue } from "./memory";
+import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
 import {
     DataLocation,
     DataLocationKind,
@@ -15,15 +14,14 @@ import {
     MemoryLocation,
     MemoryLocationKind,
     StepState,
-    StorageLocation
+    StorageLocation,
+    toABIEncodedType
 } from "..";
-import { uint256 } from "../..";
+import { MAX_ARR_DECODE_LIMIT, uint256 } from "../..";
 import { cd_decodeArrayContents, cd_decodeValue } from "./calldata";
-import { toABIEncodedType } from "../abi";
-import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
+import { mem_decodeValue } from "./memory";
+import { st_decodeInt, st_decodeValue } from "./stack";
 import { stor_decodeValue } from "./storage";
-import { st_decodeValue } from "./stack";
-import { MAX_ARR_DECODE_LIMIT } from "../../utils";
 
 function solLocToDataKind(loc: SolDataLocation): MemoryLocationKind {
     if (loc === SolDataLocation.Default) {
@@ -97,10 +95,12 @@ export function decodeValue(view: DataView, state: StepState): any {
         }
 
         const kind: MemoryLocationKind = solLocToDataKind(typ.location);
+
         let pointedToLoc: MemoryLocation;
 
         if (isCalldataType2Slots(typ)) {
             const lastExtFrame = lastExternalFrame(state.stack);
+
             let abiType: TypeNode;
 
             try {

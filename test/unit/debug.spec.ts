@@ -9,12 +9,12 @@ import {
     getContractInfo,
     lastExternalFrame,
     lsJson,
+    PartialSolcOutput,
     SolTxDebugger,
     SourceFileInfo,
     StepState
 } from "../../src";
-import { PartialSolcOutput } from "../../src/artifacts";
-import { TestStep, ppStackTrace, ResultKind, VMTestRunner, TestCase } from "../utils";
+import { ppStackTrace, ResultKind, TestCase, TestStep, VMTestRunner } from "../utils";
 
 /**
  * Find the last step in the non-internal code, that leads to the first revert

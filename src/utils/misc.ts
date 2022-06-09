@@ -10,11 +10,14 @@ import {
     SourceUnit
 } from "solc-typed-ast";
 import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
-import { UnprefixedHexString } from "../artifacts";
+import { UnprefixedHexString } from "..";
 import { DataLocation, DataLocationKind, DataView, Stack, Storage } from "../debug/sol_debugger";
 
 export const ZERO_ADDRESS_STRING = "0x0000000000000000000000000000000000000000";
 export const ZERO_ADDRESS = Address.fromString(ZERO_ADDRESS_STRING);
+
+export const uint256 = new IntType(256, false);
+export const MAX_ARR_DECODE_LIMIT = BigInt(1000);
 
 export function toHexString(n: number | bigint | Uint8Array, padding = 0): string {
     let hex: string;
@@ -64,6 +67,7 @@ export function padStart(buf: Buffer, toSize: number, filler: number): Buffer {
     }
 
     const res = Buffer.alloc(toSize, filler);
+
     for (let i = toSize - buf.length, j = 0; i < toSize; i++, j++) {
         res[i] = buf[j];
     }
@@ -178,18 +182,17 @@ export function ppView(view: DataView): string {
 
 export function ppStorage(storage: Storage): string {
     const strEntries: string[] = [];
+
     for (const [k, v] of storage.entries()) {
         strEntries.push(`${k.toString(16)}: ${v.toString("hex")}`);
     }
+
     return "{\n" + strEntries.join("\n") + "}\n";
 }
 
 export function ppEvmStack(stack: Stack): string {
-    return stack.map((frame) => frame.toString(`hex`)).join(`\n`);
+    return stack.map((frame) => frame.toString("hex")).join("\n");
 }
-
-export const uint256 = new IntType(256, false);
-export const MAX_ARR_DECODE_LIMIT = BigInt(1000);
 
 /**
  * Given an `offset` into some memory `buf` check that its in-bounds.

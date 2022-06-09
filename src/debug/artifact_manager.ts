@@ -9,25 +9,26 @@ import {
     SourceUnit
 } from "solc-typed-ast";
 import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
-import { OpcodeInfo } from ".";
-import { DecodedBytecodeSourceMapEntry, parseBytecodeSourceMapping } from "..";
 import {
+    DecodedBytecodeSourceMapEntry,
+    findContractDef,
     getArtifactCompilerVersion,
     getCodeHash,
     getCreationCodeHash,
+    parseBytecodeSourceMapping,
     PartialBytecodeDescription,
     PartialCompiledContract,
     PartialSolcOutput,
     RawAST
-} from "../artifacts";
-import { findContractDef } from "../utils/misc";
+} from "..";
+import { OpcodeInfo } from "./opcodes";
 
 export interface IArtifactManager {
     getContractFromDeployedBytecode(code: string | Buffer): ContractInfo | undefined;
     getContractFromCreationBytecode(code: string | Buffer): ContractInfo | undefined;
     artifacts(): ArtifactInfo[];
     contracts(): ContractInfo[];
-    /// TODO: Need a better way of identifying runtime contracts than (bytecode, isCreation)
+    // TODO: Need a better way of identifying runtime contracts than (bytecode, isCreation)
     getFileById(id: number, code: string | Buffer, isCreation: boolean): SourceFileInfo | undefined;
 }
 

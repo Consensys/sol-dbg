@@ -21,9 +21,8 @@ import {
     UserDefinedValueTypeDefinition,
     variableDeclarationToTypeNode
 } from "solc-typed-ast";
-import { Storage, StorageLocation } from "..";
+import { changeToLocation, Storage, StorageLocation } from "..";
 import { bigEndianBufToBigint, bigIntToBuf, fits, MAX_ARR_DECODE_LIMIT, uint256 } from "../..";
-import { changeToLocation } from "../abi";
 
 /**
  * Helper to fetch the word residing at key `key` from `storage`.  Note that
