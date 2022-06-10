@@ -2,7 +2,7 @@ import { Block } from "@ethereumjs/block";
 import { Transaction, TxData } from "@ethereumjs/tx";
 import { RunTxResult } from "@ethereumjs/vm/dist/runTx";
 import { StateManager } from "@ethereumjs/vm/dist/state";
-import { Web3VmProvider } from "@remix-project/remix-lib/src/web3Provider/web3VmProvider";
+import { VmProxy } from "@remix-project/remix-simulator/src/VmProxy";
 import { Account, Address, BN } from "ethereumjs-util";
 import { assert } from "solc-typed-ast";
 import { HexString } from "../../src/artifacts";
@@ -76,16 +76,16 @@ export interface TestCase extends BaseTestCase {
 }
 
 /**
- * Helper class to re-play harvey test cases on a in-memory Web3VMProvider
+ * Helper class to re-play harvey test cases on a in-memory VmProxy
  */
 export class VMTestRunner {
-    private _provider: Web3VmProvider;
+    private _provider: VmProxy;
     private _txs: Transaction[];
     private _txToBlock: Map<string, Block>;
     private _results: RunTxResult[];
     private _stateRootBeforeTx = new Map<string, StateManager>();
 
-    constructor(provider: Web3VmProvider) {
+    constructor(provider: VmProxy) {
         this._provider = provider;
         this._txs = [];
         this._results = [];
@@ -172,11 +172,12 @@ export class VMTestRunner {
 
     private async _runTxInt(tx: Transaction, block: Block): Promise<RunTxResult> {
         const vm = this._provider.vm;
+        const txHash = tx.hash().toString("hex");
 
         this._txs.push(tx);
 
-        this._stateRootBeforeTx.set(tx.hash().toString("hex"), vm.stateManager.copy());
-        this._txToBlock.set(tx.hash().toString("hex"), block);
+        this._stateRootBeforeTx.set(txHash, vm.stateManager.copy());
+        this._txToBlock.set(txHash, block);
         const res = vm.runTx({
             tx,
             block,
@@ -197,14 +198,20 @@ export class VMTestRunner {
     }
 
     getStateBeforeTx(tx: Transaction): StateManager {
-        const res = this._stateRootBeforeTx.get(tx.hash().toString("hex"));
-        assert(res !== undefined, ``);
+        const txHash = tx.hash().toString("hex");
+        const res = this._stateRootBeforeTx.get(txHash);
+
+        assert(res !== undefined, `Unable to find state before tx ${txHash}`);
+
         return res;
     }
 
     getBlock(tx: Transaction): Block {
-        const res = this._txToBlock.get(tx.hash().toString("hex"));
-        assert(res !== undefined, ``);
+        const txHash = tx.hash().toString("hex");
+        const res = this._txToBlock.get(txHash);
+
+        assert(res !== undefined, `Unable to find block for tx ${txHash}`);
+
         return res;
     }
 }

@@ -1,10 +1,12 @@
 import { Block } from "@ethereumjs/block";
+import Common from "@ethereumjs/common";
 import { Transaction } from "@ethereumjs/tx";
 import VM from "@ethereumjs/vm";
 import { InterpreterStep } from "@ethereumjs/vm/dist/evm/interpreter";
 import { RunTxResult } from "@ethereumjs/vm/dist/runTx";
 import { StateManager } from "@ethereumjs/vm/dist/state";
-import { Web3VmProvider } from "@remix-project/remix-lib/src/web3Provider/web3VmProvider";
+import { VMContext } from "@remix-project/remix-simulator/src/vm-context";
+import { VmProxy } from "@remix-project/remix-simulator/src/VmProxy";
 import { Address, rlp } from "ethereumjs-util";
 import {
     assert,
@@ -256,6 +258,37 @@ async function getStorage(manager: StateManager, addr: Address): Promise<Storage
     return ImmMap.fromEntries(storageEntries);
 }
 
+export class AdjustedVMContext extends VMContext {
+    /**
+     * Skip using `Common` due to it causes failures and restrictions.
+     *
+     * We also want to preserve original StateManager,
+     * as it is not yet exported and therefore is unable to be instantiated here.
+     */
+    createVm(): {
+        vm: VM;
+        web3vm: VmProxy;
+        stateManager: any;
+        common: Common;
+    } {
+        const data = super.createVm(this.currentFork);
+
+        const vm = new VM({
+            stateManager: data.vm.stateManager,
+
+            activatePrecompiles: true,
+            allowUnlimitedContractSize: true
+        });
+
+        data.vm = vm;
+        data.common = vm._common;
+
+        data.web3vm.setVM(vm);
+
+        return data;
+    }
+}
+
 /**
  * `SolTxDebugger` is the main debugger class. It contains a VM and a
  * corresponding Web3 provider that can be used to run transactions on that VM.
@@ -280,11 +313,8 @@ export class SolTxDebugger {
     /// ArtifactManager containing all the solc standard json.
     private artifactManager: IArtifactManager;
 
-    /// Internal EteherumJS VM. Its owned by this class
-    private vm: VM;
-
     /// Web3 provider wrapping around `this.vm`
-    public readonly web3: Web3VmProvider;
+    public readonly web3vm: VmProxy;
 
     /**
      * Map from addresses to information about contracts deployed at that address. We use this to cache
@@ -306,17 +336,20 @@ export class SolTxDebugger {
     constructor(artifactManager: IArtifactManager) {
         this.artifactManager = artifactManager;
 
-        this.vm = new VM();
-        this.web3 = new Web3VmProvider();
-        this.web3.setVM(this.vm);
+        const vmContext = new AdjustedVMContext();
+
+        const { web3vm, stateManager } = vmContext.currentVm;
+
+        this.web3vm = web3vm;
         this.deployedContracts = new Map();
 
-        const oldPutContractCode = this.vm.stateManager.putContractCode.bind(this.vm.stateManager);
+        const oldPutContractCode = stateManager.putContractCode.bind(stateManager);
+
         // This is a really dirty trick to interpose every time a new contract
         // is added (i.e. when code is assigned to an address)
         // We use this interposition to keep our deployed contract cache correct.
         // TODO: Move this in stateManager.ts
-        this.vm.stateManager.putContractCode = async (address: Address, code: Buffer) => {
+        stateManager.putContractCode = async (address: Address, code: Buffer) => {
             if (code.length > 0) {
                 const info = this.buildDeployedContractInfo(address, code);
 
@@ -687,6 +720,7 @@ export class SolTxDebugger {
         }
 
         const info = this.buildDeployedContractInfo(addr, code);
+
         this.deployedContracts.set(info.address, info);
 
         return info;
