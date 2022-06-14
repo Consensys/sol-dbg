@@ -145,7 +145,7 @@ describe(`Local tests`, async () => {
 
                     before(async () => {
                         solDbg = new SolTxDebugger(artifactManager);
-                        runner = new VMTestRunner(solDbg.web3);
+                        runner = new VMTestRunner(solDbg.web3vm);
                         testJSON = fse.readJsonSync(txFile) as TestCase;
 
                         await runner.runTestCase(testJSON);
@@ -177,7 +177,7 @@ describe(`Local tests`, async () => {
                             const errorStep = findLastNonInternalStepBeforeRevert(trace);
 
                             expect(errorStep).not.toBeUndefined();
-                            assert(errorStep !== undefined, ``);
+                            assert(errorStep !== undefined, "Should be catched by prev statement");
 
                             const lastExtStep = lastExternalFrame(errorStep.stack);
                             const info = getContractInfo(
