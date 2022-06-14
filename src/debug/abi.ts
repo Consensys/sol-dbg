@@ -77,7 +77,9 @@ function abiStaticTypeSize(typ: TypeNode): number {
         typ instanceof PointerType
     ) {
         return 32;
-    } else if (typ instanceof UserDefinedType) {
+    }
+
+    if (typ instanceof UserDefinedType) {
         const def = typ.definition;
 
         if (
@@ -86,19 +88,22 @@ function abiStaticTypeSize(typ: TypeNode): number {
             def instanceof UserDefinedValueTypeDefinition
         ) {
             return 32;
-        } else {
-            throw new Error(`NYI decoding user-defined type ${typ.pp()}`);
         }
-    } else if (typ instanceof TupleType) {
+
+        throw new Error(`NYI decoding user-defined type ${typ.pp()}`);
+    }
+
+    if (typ instanceof TupleType) {
         let res = 0;
+
         for (const elT of typ.elements) {
             res += abiStaticTypeSize(elT);
         }
 
         return res;
-    } else {
-        throw new Error(`NYI decoding type ${typ.pp()}`);
     }
+
+    throw new Error(`NYI decoding type ${typ.pp()}`);
 }
 
 /**
@@ -145,6 +150,7 @@ export function decodeMsgData(
         const staticSize = abiStaticTypeSize(typ);
         const loc =
             staticOff + staticSize <= len ? { kind, address: BigInt(staticOff) } : undefined;
+
         staticOff += staticSize;
 
         const val = loc ? { type: originalType, loc } : undefined;
@@ -219,6 +225,7 @@ export function toABIEncodedType(type: TypeNode, encoderVersion: ABIEncoderVersi
 
         if (type.size !== undefined) {
             const elements = [];
+
             for (let i = 0; i < type.size; i++) {
                 elements.push(encodedElementT);
             }

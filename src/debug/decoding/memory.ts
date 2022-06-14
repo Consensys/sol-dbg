@@ -89,6 +89,7 @@ function mem_decodeBool(loc: LinearMemoryLocation, memory: Memory): undefined | 
     }
 
     const res = bigEndianBufToBigint(memory.slice(numAddr, numAddr + 32)) !== BigInt(0);
+
     return [res, 32];
 }
 
@@ -133,6 +134,7 @@ function mem_decodeBytes(loc: LinearMemoryLocation, memory: Memory): undefined |
     }
 
     const res = memory.slice(checkedArrDynOffset, checkedArrDynOffset + numLen);
+
     return [res, bytesSize];
 }
 
@@ -226,6 +228,7 @@ function mem_decodeTuple(
 
         tupleOffset += BigInt(elementSize);
         size += elementSize;
+
         res.push(elVal);
     }
 
@@ -238,6 +241,7 @@ function mem_decodeStruct(
     memory: Memory
 ): undefined | [any, number] {
     const res: any = {};
+
     let size = 0;
     let offset = loc.address;
 
@@ -255,6 +259,7 @@ function mem_decodeStruct(
         }
 
         res[field.name] = fieldRes[0];
+
         size += fieldRes[1];
         offset += BigInt(fieldRes[1]);
     }

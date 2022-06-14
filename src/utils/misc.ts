@@ -10,16 +10,16 @@ import {
     SourceUnit
 } from "solc-typed-ast";
 import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
-import { UnprefixedHexString } from "..";
+import { HexString, UnprefixedHexString } from "..";
 import { DataLocation, DataLocationKind, DataView, Stack, Storage } from "../debug/sol_debugger";
 
-export const ZERO_ADDRESS_STRING = "0x0000000000000000000000000000000000000000";
+export const ZERO_ADDRESS_STRING: HexString = "0x0000000000000000000000000000000000000000";
 export const ZERO_ADDRESS = Address.fromString(ZERO_ADDRESS_STRING);
 
 export const uint256 = new IntType(256, false);
 export const MAX_ARR_DECODE_LIMIT = BigInt(1000);
 
-export function toHexString(n: number | bigint | Uint8Array, padding = 0): string {
+export function toHexString(n: number | bigint | Uint8Array, padding = 0): HexString {
     let hex: string;
 
     if (n instanceof Uint8Array) {
@@ -181,13 +181,13 @@ export function ppView(view: DataView): string {
 }
 
 export function ppStorage(storage: Storage): string {
-    const strEntries: string[] = [];
+    const data: { [key: UnprefixedHexString]: UnprefixedHexString } = {};
 
     for (const [k, v] of storage.entries()) {
-        strEntries.push(`${k.toString(16)}: ${v.toString("hex")}`);
+        data[k.toString(16)] = v.toString("hex");
     }
 
-    return "{\n" + strEntries.join("\n") + "}\n";
+    return JSON.stringify(data, undefined, 4) + "\n";
 }
 
 export function ppEvmStack(stack: Stack): string {
@@ -246,14 +246,14 @@ export function bnToBigInt(n: BN): bigint {
     return BigInt("0x" + n.toString(16));
 }
 
-export function stripOx(s: string): string {
+export function stripOx(s: HexString): UnprefixedHexString {
     return s.startsWith("0x") ? s.slice(2) : s;
 }
 
 export function getFunctionSelector(
     f: FunctionDefinition,
     encoderVersion = ABIEncoderVersion.V2
-): string | undefined {
+): UnprefixedHexString | undefined {
     if (f.raw !== undefined && f.raw.functionSelector !== undefined) {
         return f.raw.functionSelector;
     }

@@ -118,6 +118,7 @@ export function st_decodeValue(typ: TypeNode, loc: StackLocation, stack: Stack):
 
         if (def instanceof UserDefinedValueTypeDefinition) {
             const underlyingType = typeNameToTypeNode(def.underlyingType);
+
             return st_decodeValue(underlyingType, loc, stack);
         }
 

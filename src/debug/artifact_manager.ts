@@ -19,7 +19,8 @@ import {
     PartialBytecodeDescription,
     PartialCompiledContract,
     PartialSolcOutput,
-    RawAST
+    RawAST,
+    UnprefixedHexString
 } from "..";
 import { OpcodeInfo } from "./opcodes";
 
@@ -85,7 +86,7 @@ export interface SourceFileInfo {
  * The main assumption we make is that all non-instruction bytecode comes at the end of the
  * bytecode.
  */
-function buildOffsetToIndexMap(bytecode: Buffer | string): Map<number, number> {
+function buildOffsetToIndexMap(bytecode: Buffer | UnprefixedHexString): Map<number, number> {
     if (typeof bytecode === "string") {
         bytecode = Buffer.from(bytecode, "hex");
     }

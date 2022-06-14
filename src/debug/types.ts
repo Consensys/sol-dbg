@@ -1,10 +1,10 @@
 import { FunctionDefinition } from "solc-typed-ast";
+import { HexString, UnprefixedHexString } from "../artifacts";
 import { ContractInfo } from "./artifact_manager";
 
 export interface DeployedContractInfo {
-    address: string;
-    // TODO: Should this be unprefixed?
-    code: string;
+    address: HexString;
+    code: UnprefixedHexString;
     info?: ContractInfo;
 }
 

@@ -1,7 +1,7 @@
 import { Decoder } from "cbor";
 import { assert } from "solc-typed-ast";
 import { toHexString } from "..";
-import { HexString, PartialSolcOutput } from "./solc";
+import { HexString, PartialSolcOutput, UnprefixedHexString } from "./solc";
 
 interface ContractMdStruct {
     // Prior to 0.6.x the swarm hash field was called bzzr0
@@ -56,7 +56,9 @@ function getBytecodeMdInfoHacky(bytecode: string | Buffer): ContractMdStruct | u
     return res;
 }
 
-function getDeployedBytecodeMdInfo(deployedBytecode: string | Buffer): ContractMdStruct {
+function getDeployedBytecodeMdInfo(
+    deployedBytecode: UnprefixedHexString | Buffer
+): ContractMdStruct {
     const len = deployedBytecode.length;
 
     let rawMd: any;
@@ -92,7 +94,9 @@ function getDeployedBytecodeMdInfo(deployedBytecode: string | Buffer): ContractM
     return res;
 }
 
-export function getCodeHash(deplBytecode: string | Buffer): [string, string] | undefined {
+export function getCodeHash(
+    deplBytecode: UnprefixedHexString | Buffer
+): [string, HexString] | undefined {
     const md = getDeployedBytecodeMdInfo(deplBytecode);
 
     if (md.bzzr0 !== undefined) {
@@ -107,8 +111,8 @@ export function getCodeHash(deplBytecode: string | Buffer): [string, string] | u
 }
 
 export function getCreationCodeHash(
-    creationBytecode: string | Buffer
-): [string, string] | undefined {
+    creationBytecode: UnprefixedHexString | Buffer
+): [string, HexString] | undefined {
     const md = getBytecodeMdInfoHacky(creationBytecode);
 
     if (md === undefined) {

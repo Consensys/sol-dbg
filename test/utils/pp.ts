@@ -102,6 +102,7 @@ function ppValue(typ: TypeNode, v: any): string {
             for (const field of fields) {
                 try {
                     const fieldT = variableDeclarationToTypeNode(field);
+
                     strFields.push(field.name + ": " + ppValue(fieldT, v[field.name]));
                 } catch (e) {
                     strFields.push(field.name + ": <failed decoding>");
@@ -161,6 +162,7 @@ export function ppStackTrace(
                     lastPosInFrame.start,
                     true
                 );
+
                 fileName += `:${t.line}:${t.column}`;
             }
         }
@@ -184,6 +186,7 @@ export function ppStackTrace(
             for (const [, view] of frame.arguments) {
                 if (view === undefined) {
                     funArgEls.push("<unknown>");
+
                     continue;
                 }
 

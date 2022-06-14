@@ -126,6 +126,7 @@ describe(`Local tests`, async () => {
         describe(`Sample ${sample}`, () => {
             let artifacts: PartialSolcOutput[] = [];
             let artifactManager: ArtifactManager;
+
             const sources = new Map<string, string>();
 
             before(() => {

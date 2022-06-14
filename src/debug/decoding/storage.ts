@@ -61,6 +61,7 @@ function fetchBytes(
 
         if (offInWord === 0 && i < numBytes - 1) {
             wordOff++;
+
             curBuf = fetchWord(wordOff, storage);
         }
     }
@@ -80,6 +81,7 @@ function stor_decodeInt(
     storage: Storage
 ): [bigint, StorageLocation] {
     const size = typ.nBits / 8;
+
     assert(
         loc.endOffsetInWord >= size,
         `Internal Error: Can't decode {0} starting at offset {1} in word {2}`,
@@ -89,6 +91,7 @@ function stor_decodeInt(
     );
 
     const rawBytes = fetchBytes(loc.address, loc.endOffsetInWord - size, size, storage);
+
     let res = bigEndianBufToBigint(rawBytes);
     //console.error(`stor_decodeInt rawBytes=${rawBytes.toString(`hex`)} res=${res}`);
 
@@ -138,6 +141,7 @@ function stor_decodeEnum(
     storage: Storage
 ): undefined | [bigint, StorageLocation] {
     const typ = enumToIntType(def);
+
     return stor_decodeInt(typ, loc, storage);
 }
 
@@ -165,6 +169,7 @@ function stor_decodeFixedBytes(
         endOffsetInWord: nextEndOff === 0 ? 32 : nextEndOff,
         address: nextEndOff === 0 ? loc.address + BigInt(1) : loc.address
     };
+
     return [bytes, nextLoc];
 }
 
@@ -242,6 +247,7 @@ function typeFitsInLoc(typ: TypeNode, loc: StorageLocation): boolean {
     }
 
     const size = typeStaticStorSize(typ);
+
     assert(size <= 32, `Unexpected type ${typ.pp()} spanning more than a single word`);
 
     return size <= loc.endOffsetInWord;
@@ -274,6 +280,7 @@ function stor_decodeStruct(
     storage: Storage
 ): undefined | [any, StorageLocation] {
     const def = typ.definition;
+
     assert(def instanceof StructDefinition, `stor_decodeStruct expects a struct, not {0}`, typ);
     assert(
         loc.endOffsetInWord === 32,
@@ -297,14 +304,14 @@ function stor_decodeStruct(
         const fieldT = changeToLocation(fieldGenT, SolDataLocation.Storage);
 
         loc = roundLocToType(loc, fieldT);
+
         const fieldVal = stor_decodeValue(fieldT, loc, storage);
 
         if (fieldVal === undefined) {
             return undefined;
         }
 
-        res[field.name] = fieldVal[0];
-        loc = fieldVal[1];
+        [res[field.name], loc] = fieldVal;
     }
 
     return [res, loc];
@@ -313,6 +320,7 @@ function stor_decodeStruct(
 function keccakOfAddr(addr: bigint): bigint {
     const addrBuf = bigIntToBuf(addr, 32, "big");
     const hashBuf = keccak256(addrBuf);
+
     return bigEndianBufToBigint(hashBuf);
 }
 
@@ -365,6 +373,7 @@ function stor_decodeString(
     }
 
     const str = res[0].toString("utf-8");
+
     return [str, res[1]];
 }
 
@@ -375,6 +384,7 @@ function stor_decodeArray(
 ): undefined | [any[], StorageLocation] {
     let numLen: number;
     let contentsLoc: StorageLocation;
+
     const res: any[] = [];
 
     if (typ.size === undefined) {
@@ -404,11 +414,13 @@ function stor_decodeArray(
 
     for (let i = 0; i < numLen; i++) {
         const elRes = stor_decodeValue(typ.elementT, contentsLoc, storage);
+
         if (elRes === undefined) {
             return undefined;
         }
 
         res.push(elRes[0]);
+
         contentsLoc = roundLocToType(elRes[1], typ.elementT);
     }
 
