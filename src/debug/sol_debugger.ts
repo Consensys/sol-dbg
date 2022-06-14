@@ -23,6 +23,7 @@ import {
     HexString,
     ImmMap,
     padStart,
+    UnprefixedHexString,
     wordToAddress,
     ZERO_ADDRESS,
     ZERO_ADDRESS_STRING
@@ -112,7 +113,7 @@ export type DbgStack = Frame[];
  * Information kept by the debugger for every deployed contract in the VM
  */
 interface DeployedContractInfo {
-    address: string;
+    address: HexString;
     code: Buffer;
     info?: ContractInfo;
 }
@@ -301,7 +302,7 @@ export class SolTxDebugger {
      *
      * For now we just assert that this doesn't happen in VM's `putCode`, but we should fix this.
      */
-    private deployedContracts: Map<string, DeployedContractInfo>;
+    private deployedContracts: Map<HexString, DeployedContractInfo>;
 
     constructor(artifactManager: IArtifactManager) {
         this.artifactManager = artifactManager;
@@ -687,6 +688,7 @@ export class SolTxDebugger {
         }
 
         const info = this.buildDeployedContractInfo(addr, code);
+
         this.deployedContracts.set(info.address, info);
 
         return info;
@@ -732,9 +734,11 @@ export class SolTxDebugger {
         step: number
     ): Promise<CallFrame> {
         const deplContractInfo = this.getDeployedContract(receiver, receiverCode);
+
         assert(deplContractInfo !== undefined, `No contract found at address ${receiver}`);
 
-        const selector = data.slice(0, 4).toString("hex");
+        const selector: UnprefixedHexString = data.slice(0, 4).toString("hex");
+
         let callee: FunctionDefinition | VariableDeclaration | undefined;
         let args: Array<[string, DataView | undefined]> | undefined;
 
@@ -800,9 +804,6 @@ export class SolTxDebugger {
      * 1. If there is no debug info for the contract executing in `ctx` return undefined
      * 2. If there is debug info, but no AST return only the decoded bytecode sourcemap entry
      * 3. If there is both debug info and an AST return the decoded source location and any AST nodes that match this location
-     *
-     * @param instOffset
-     * @param ctx
      */
     decodeSourceLoc(
         instrOffset: number,
@@ -851,9 +852,11 @@ export class SolTxDebugger {
         }
 
         let offsetFromTop = -1;
+
         for (let i = formals.length - 1; i >= 0; i--) {
             const [name, typ] = formals[i];
             const stackSize = isCalldataType2Slots(typ) ? 2 : 1;
+
             offsetFromTop += stackSize;
 
             assert(

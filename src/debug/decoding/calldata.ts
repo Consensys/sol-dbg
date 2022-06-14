@@ -78,6 +78,7 @@ function cd_decodeFixedBytes(
     }
 
     const res = calldata.slice(numAddr, numAddr + typ.size);
+
     return [res, 32];
 }
 
@@ -89,6 +90,7 @@ function cd_decodeBool(loc: CalldataLocation, calldata: Memory): undefined | [bo
     }
 
     const res = bigEndianBufToBigint(calldata.slice(numAddr, numAddr + 32)) !== BigInt(0);
+
     return [res, 32];
 }
 
@@ -126,6 +128,7 @@ function cd_decodeBytes(loc: CalldataLocation, calldata: Memory): undefined | [B
     }
 
     res = calldata.slice(checkedArrDynOffset, checkedArrDynOffset + numLen);
+
     return [res, bytesSize];
 }
 
@@ -199,6 +202,7 @@ function cd_decodeArray(
     }
 
     const numLen = Number(len[0]);
+
     arrOffset += BigInt(len[1]);
     arrBytesSize += len[1];
 
@@ -285,6 +289,7 @@ function cd_decodeTuple(
 
         tupleOffset += BigInt(elementSize);
         size += elementSize;
+
         tupleRes.push(elVal);
     }
 
@@ -376,6 +381,7 @@ export function cd_decodeValue(
             `Unexpected original type {0}`,
             origType
         );
+
         return cd_decodeArray(abiType, origType, loc, calldata);
     }
 
@@ -397,6 +403,7 @@ export function cd_decodeValue(
             `Unexpected original type {0}`,
             origType
         );
+
         return cd_decodePointer(abiType, origType, loc, calldata, callDataBaseOff);
     }
 

@@ -44,7 +44,9 @@ function decodeValInt(typ: TypeNode, loc: DataLocation, state: StepState): any {
 
     if (loc.kind === DataLocationKind.CallData) {
         const lastExtFrame = lastExternalFrame(state.stack);
+
         let abiType: TypeNode;
+
         try {
             abiType = toABIEncodedType(typ, ABIEncoderVersion.V2);
         } catch (e) {
@@ -61,6 +63,7 @@ function decodeValInt(typ: TypeNode, loc: DataLocation, state: StepState): any {
     }
 
     const res = stor_decodeValue(typ, loc, state.storage);
+
     return res === undefined ? res : res[0];
 }
 

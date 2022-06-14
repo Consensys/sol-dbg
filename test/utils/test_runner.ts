@@ -177,6 +177,7 @@ export class VMTestRunner {
 
         this._stateRootBeforeTx.set(tx.hash().toString("hex"), vm.stateManager.copy());
         this._txToBlock.set(tx.hash().toString("hex"), block);
+
         const res = vm.runTx({
             tx,
             block,

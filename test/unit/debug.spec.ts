@@ -126,6 +126,7 @@ describe(`Local tests`, async () => {
         describe(`Sample ${sample}`, () => {
             let artifacts: PartialSolcOutput[] = [];
             let artifactManager: ArtifactManager;
+
             const sources = new Map<string, string>();
 
             before(() => {
@@ -211,6 +212,7 @@ describe(`Local tests`, async () => {
                                 fileContents = fse.readFileSync(fileName, {
                                     encoding: "utf-8"
                                 });
+
                                 sources.set(fileName, fileContents);
                             }
 
