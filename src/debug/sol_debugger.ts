@@ -1,12 +1,9 @@
 import { Block } from "@ethereumjs/block";
-import Common from "@ethereumjs/common";
 import { Transaction } from "@ethereumjs/tx";
 import VM from "@ethereumjs/vm";
 import { InterpreterStep } from "@ethereumjs/vm/dist/evm/interpreter";
 import { RunTxResult } from "@ethereumjs/vm/dist/runTx";
 import { StateManager } from "@ethereumjs/vm/dist/state";
-import { VMContext } from "@remix-project/remix-simulator/src/vm-context";
-import { VmProxy } from "@remix-project/remix-simulator/src/VmProxy";
 import { Address, rlp } from "ethereumjs-util";
 import {
     assert,
@@ -30,6 +27,7 @@ import {
     ZERO_ADDRESS,
     ZERO_ADDRESS_STRING
 } from "..";
+import { getCodeHash, getCreationCodeHash } from "../artifacts";
 import { decodeMsgData } from "./abi";
 import { ContractInfo, getOffsetSrc, IArtifactManager } from "./artifact_manager";
 import { isCalldataType2Slots } from "./decoding";
@@ -82,7 +80,6 @@ interface BaseExternalFrame extends BaseFrame {
  */
 interface CallFrame extends BaseExternalFrame {
     readonly kind: FrameKind.Call;
-    // TODO: Unify below 3 fields into 'receiver: DeployedContractInfo`
     readonly receiver: HexString;
     readonly code: Buffer;
     readonly info?: ContractInfo;
@@ -103,22 +100,12 @@ interface CreationFrame extends BaseExternalFrame {
 interface InternalCallFrame extends BaseFrame {
     readonly kind: FrameKind.InternalCall;
     readonly nearestExtFrame: CallFrame | CreationFrame;
-    // TODO: Perhaps add a curContract: DeployedContractInfo field here as well, to avoid the lookup into nearestExtFrame
     readonly offset: number;
 }
 
 export type ExternalFrame = CallFrame | CreationFrame;
 export type Frame = ExternalFrame | InternalCallFrame;
 export type DbgStack = Frame[];
-
-/**
- * Information kept by the debugger for every deployed contract in the VM
- */
-interface DeployedContractInfo {
-    address: HexString;
-    code: Buffer;
-    info?: ContractInfo;
-}
 
 export enum DataLocationKind {
     Stack = "stack",
@@ -196,7 +183,6 @@ export interface StepVMState {
     depth: number;
     address: Address;
     codeAddress: Address;
-    code: Buffer;
 }
 
 /**
@@ -206,6 +192,8 @@ export interface StepVMState {
  * that may be emitted on this step.
  */
 export interface StepState extends StepVMState {
+    code: Buffer;
+    codeMdHash: HexString | undefined;
     stack: DbgStack;
     src: DecodedBytecodeSourceMapEntry | undefined;
     astNode: ASTNode | undefined;
@@ -259,37 +247,6 @@ async function getStorage(manager: StateManager, addr: Address): Promise<Storage
     return ImmMap.fromEntries(storageEntries);
 }
 
-export class AdjustedVMContext extends VMContext {
-    /**
-     * Skip using `Common` due to it causes failures and restrictions.
-     *
-     * We also want to preserve original StateManager,
-     * as it is not yet exported and therefore is unable to be instantiated here.
-     */
-    createVm(): {
-        vm: VM;
-        web3vm: VmProxy;
-        stateManager: any;
-        common: Common;
-    } {
-        const data = super.createVm(this.currentFork);
-
-        const vm = new VM({
-            stateManager: data.vm.stateManager,
-
-            activatePrecompiles: true,
-            allowUnlimitedContractSize: true
-        });
-
-        data.vm = vm;
-        data.common = vm._common;
-
-        data.web3vm.setVM(vm);
-
-        return data;
-    }
-}
-
 /**
  * `SolTxDebugger` is the main debugger class. It contains a VM and a
  * corresponding Web3 provider that can be used to run transactions on that VM.
@@ -314,56 +271,8 @@ export class SolTxDebugger {
     /// ArtifactManager containing all the solc standard json.
     private artifactManager: IArtifactManager;
 
-    /// Web3 provider wrapping around `this.vm`
-    public readonly web3vm: VmProxy;
-
-    /**
-     * Map from addresses to information about contracts deployed at that address. We use this to cache
-     * lookups from contract code to their corresponding debug info in the artifact manager.
-     *
-     * TODO(dimo): There is a potnetial bug here if a user does the following:
-     * 1. Create a contract at address X in tx0
-     * 2. Call X.foo() in tx1
-     * 3. Destroy contract in X in tx2
-     * 4. Create another contract at address X in tx3 (using CREATE2 for example)
-     *
-     * If at that point the user calls `loadTx(tx1)`, the contract stored in `deployedContracts` will be the one
-     * from step 4, not the one from step 1 which is whats expected.
-     *
-     * For now we just assert that this doesn't happen in VM's `putCode`, but we should fix this.
-     */
-    private deployedContracts: Map<HexString, DeployedContractInfo>;
-
     constructor(artifactManager: IArtifactManager) {
         this.artifactManager = artifactManager;
-
-        const vmContext = new AdjustedVMContext();
-
-        const { web3vm, stateManager } = vmContext.currentVm;
-
-        this.web3vm = web3vm;
-        this.deployedContracts = new Map();
-
-        const oldPutContractCode = stateManager.putContractCode.bind(stateManager);
-
-        // This is a really dirty trick to interpose every time a new contract
-        // is added (i.e. when code is assigned to an address)
-        // We use this interposition to keep our deployed contract cache correct.
-        // TODO: Move this in stateManager.ts
-        stateManager.putContractCode = async (address: Address, code: Buffer) => {
-            if (code.length > 0) {
-                const info = this.buildDeployedContractInfo(address, code);
-
-                assert(
-                    !this.deployedContracts.has(info.address),
-                    `Overwriting contract at address ${info.address}`
-                );
-
-                this.deployedContracts.set(info.address, info);
-            }
-
-            return oldPutContractCode(address, code);
-        };
     }
 
     /**
@@ -378,7 +287,9 @@ export class SolTxDebugger {
     private async adjustStackFrame(
         stack: Frame[],
         state: StepVMState,
-        trace: StepState[]
+        trace: StepState[],
+        code: Buffer,
+        codeHash: HexString | undefined
     ): Promise<void> {
         const lastExtFrame: ExternalFrame = lastExternalFrame(stack);
 
@@ -426,19 +337,14 @@ export class SolTxDebugger {
                     const argSize = Number(lastStep.evmStack[lastStackTop - argSizeStackOff]);
 
                     const receiver = wordToAddress(lastStep.evmStack[lastStackTop - 1]);
-                    const deplContractInfo = await this.getDeployedContract(receiver, state.code);
-
-                    assert(
-                        deplContractInfo !== undefined,
-                        `No contract found at address ${receiver}`
-                    );
 
                     const msgData = lastStep.memory.slice(argOff, argOff + argSize);
                     const newFrame = await this.makeCallFrame(
                         lastExtFrame.address.toString(),
                         receiver,
                         msgData,
-                        state.code,
+                        code,
+                        codeHash,
                         trace.length
                     );
 
@@ -517,6 +423,47 @@ export class SolTxDebugger {
         }
     }
 
+    /**
+     * Get the executing code for the current step. There are 3 cases:
+     *
+     * 1. We just entered the creation of a new code (last step was
+     * CREATE/CREATE2 and depth changed). The code is whatever the memory blob
+     * passed to the last op was
+     * 2. This is the first step or the `codeAddress` changed between this and the last
+     * steps - obtain the code from the `vm.stateManager` using `codeAddress`.
+     * 3. Otherwise code is the same in the last step
+     * @param vm - current VM
+     * @param vmState - current (partial) state in the trace (for which we are computing code)
+     * @param trace - trace up to the current state
+     */
+    private async getCodeAndMdHash(
+        vm: VM,
+        step: StepVMState,
+        trace: StepState[]
+    ): Promise<[Buffer, HexString | undefined]> {
+        const lastStep: StepState | undefined =
+            trace.length > 0 ? trace[trace.length - 1] : undefined;
+
+        let code: Buffer;
+        let codeMdHash: HexString | undefined;
+
+        if (lastStep !== undefined && createsContract(lastStep.op)) {
+            const lastStackTop = lastStep.evmStack.length - 1;
+            const off = Number(lastStep.evmStack[lastStackTop - 1]);
+            const size = Number(lastStep.evmStack[lastStackTop - 2]);
+            code = lastStep.memory.slice(off, off + size);
+            codeMdHash = getCreationCodeHash(code);
+        } else if (lastStep === undefined || !lastStep.codeAddress.equals(step.codeAddress)) {
+            code = await vm.stateManager.getContractCode(step.codeAddress);
+            codeMdHash = getCodeHash(code);
+        } else {
+            code = lastStep.code;
+            codeMdHash = lastStep.codeMdHash;
+        }
+
+        return [code, codeMdHash];
+    }
+
     async processRawTraceStep(
         vm: VM,
         step: InterpreterStep,
@@ -535,15 +482,6 @@ export class SolTxDebugger {
         }
 
         const op = getOpInfo(step.opcode.name);
-
-        let code: Buffer;
-
-        if (lastStep === undefined || !lastStep.codeAddress.equals(step.codeAddress)) {
-            code = await vm.stateManager.getContractCode(step.codeAddress);
-        } else {
-            code = lastStep.code;
-        }
-
         let storage: Storage;
 
         if (lastStep === undefined || lastStep.op.opcode === OPCODES.SSTORE) {
@@ -568,11 +506,11 @@ export class SolTxDebugger {
             gas: bnToBigInt(step.gasLeft),
             depth: step.depth + 1, // Match geth's depth starting at 1
             address: step.address,
-            codeAddress: step.codeAddress,
-            code
+            codeAddress: step.codeAddress
         };
 
-        await this.adjustStackFrame(stack, vmState, trace);
+        const [code, codeMdHash] = await this.getCodeAndMdHash(vm, vmState, trace);
+        await this.adjustStackFrame(stack, vmState, trace, code, codeMdHash);
 
         const curExtFrame = lastExternalFrame(stack);
 
@@ -582,18 +520,7 @@ export class SolTxDebugger {
         try {
             [src, astNode] = this.decodeSourceLoc(step.pc, curExtFrame);
         } catch (e) {
-            console.error(
-                `Failed decoding location ${step.pc} ${step.opcode.name} depth ${
-                    vmState.depth
-                } codeAddr ${vmState.codeAddress.toString()} last op ${
-                    lastStep?.op.mnemonic
-                } depth ${
-                    lastStep?.depth
-                } codeAddr ${lastStep?.codeAddress.toString()} codes different? ${
-                    Buffer.compare(vmState.code, (lastStep as StepState).code) !== 0
-                }`
-            );
-            console.error(`Code is ${code.toString("hex")}`);
+            // Nothing to do
         }
 
         let emittedEvent: EventDesc | undefined = undefined;
@@ -616,6 +543,8 @@ export class SolTxDebugger {
 
         return {
             ...vmState,
+            code,
+            codeMdHash,
             stack: [...stack],
             src,
             astNode,
@@ -640,16 +569,14 @@ export class SolTxDebugger {
         if (isCreation) {
             curFrame = await this.makeCreationFrame(sender, tx.data, 0);
         } else {
-            const receiverInfo = this.deployedContracts.get((tx.to as Address).toString());
-            // TODO: This assert is kinda stupid. Because of it we need to use only the internal VM instead of accepting any VM (so that
-            // we know about all contracts deployed already.) Should re-write the code so I don't need this.
-            assert(receiverInfo !== undefined, ``);
-
+            const code = await vm.stateManager.getContractCode(tx.to as Address);
+            const codeHash = getCodeHash(code);
             curFrame = await this.makeCallFrame(
                 sender,
                 tx.to as Address,
                 tx.data,
-                receiverInfo.code,
+                code,
+                codeHash,
                 0
             );
         }
@@ -673,58 +600,6 @@ export class SolTxDebugger {
         });
 
         return [trace, txRes];
-    }
-
-    /**
-     * Helper: Given an address, and the contract code at this address, build a `DeployedContractInfo` struct
-     * for this contract. This preforms lookups by code in the `artifactManager`.
-     */
-    private buildDeployedContractInfo(address: Address, code: Buffer): DeployedContractInfo {
-        let info: ContractInfo | undefined;
-
-        try {
-            info = this.artifactManager.getContractFromDeployedBytecode(code);
-        } catch (e) {
-            // Nothing to do
-        }
-
-        const hexAddr = address.toString();
-
-        return {
-            address: hexAddr,
-            code: code,
-            info
-        };
-    }
-
-    /**
-     * Get the information for the contract deployed at the given address.
-     * Returns `undefined` if we don't know about such a contract. If there is a
-     * contract there, but we don't have compiler/debug info for it, this will
-     * NOT return undefined - it will return a valid struct.
-     */
-    private getDeployedContract(
-        arg: HexString | Address,
-        code: Buffer
-    ): DeployedContractInfo | undefined {
-        const addr = arg instanceof Address ? arg : Address.fromString(arg);
-        const hexAddr = arg instanceof Address ? arg.toString() : arg;
-
-        const res: DeployedContractInfo | undefined = this.deployedContracts.get(hexAddr);
-
-        if (res !== undefined) {
-            return res;
-        }
-
-        if (code.length === 0) {
-            return undefined;
-        }
-
-        const info = this.buildDeployedContractInfo(addr, code);
-
-        this.deployedContracts.set(info.address, info);
-
-        return info;
     }
 
     /**
@@ -764,24 +639,22 @@ export class SolTxDebugger {
         receiver: Address,
         data: Buffer,
         receiverCode: Buffer,
+        codeHash: HexString | undefined,
         step: number
     ): Promise<CallFrame> {
-        const deplContractInfo = this.getDeployedContract(receiver, receiverCode);
-
-        assert(deplContractInfo !== undefined, `No contract found at address ${receiver}`);
+        const contractInfo: ContractInfo | undefined =
+            codeHash === undefined
+                ? codeHash
+                : this.artifactManager.getContractFromMDHash(codeHash);
 
         const selector: UnprefixedHexString = data.slice(0, 4).toString("hex");
 
         let callee: FunctionDefinition | VariableDeclaration | undefined;
         let args: Array<[string, DataView | undefined]> | undefined;
 
-        if (
-            deplContractInfo.info &&
-            deplContractInfo.info.ast &&
-            deplContractInfo.info?.artifact.abiEncoderVersion
-        ) {
-            const contract = deplContractInfo.info.ast;
-            const abiVersion = deplContractInfo.info?.artifact.abiEncoderVersion;
+        if (contractInfo && contractInfo.ast) {
+            const contract = contractInfo.ast;
+            const abiVersion = contractInfo.artifact.abiEncoderVersion;
             const matchingFuns = contract.vFunctions.filter(
                 (fun) => getFunctionSelector(fun) === selector
             );
@@ -819,8 +692,8 @@ export class SolTxDebugger {
             sender,
             msgData: data,
             receiver: receiver.toString(),
-            code: deplContractInfo.code,
-            info: deplContractInfo.info,
+            code: receiverCode,
+            info: contractInfo,
             callee,
             address: receiver,
             startStep: step,

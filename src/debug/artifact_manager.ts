@@ -22,11 +22,13 @@ import {
     RawAST,
     UnprefixedHexString
 } from "..";
+import { HexString } from "../artifacts";
 import { OpcodeInfo } from "./opcodes";
 
 export interface IArtifactManager {
     getContractFromDeployedBytecode(code: string | Buffer): ContractInfo | undefined;
     getContractFromCreationBytecode(code: string | Buffer): ContractInfo | undefined;
+    getContractFromMDHash(hash: HexString): ContractInfo | undefined;
     artifacts(): ArtifactInfo[];
     contracts(): ContractInfo[];
     // TODO: Need a better way of identifying runtime contracts than (bytecode, isCreation)
@@ -235,12 +237,12 @@ export class ArtifactManager implements IArtifactManager {
                                 contractArtifact.evm.deployedBytecode.object
                             )
                         },
-                        mdHash: hash[1]
+                        mdHash: hash
                     };
 
                     this._contracts.push(contractInfo);
 
-                    this._mdHashToContractInfo.set(hash[1], contractInfo);
+                    this._mdHashToContractInfo.set(hash, contractInfo);
                 }
             }
         }
@@ -250,11 +252,15 @@ export class ArtifactManager implements IArtifactManager {
         return this._artifacts;
     }
 
+    getContractFromMDHash(hash: HexString): ContractInfo | undefined {
+        return this._mdHashToContractInfo.get(hash);
+    }
+
     getContractFromDeployedBytecode(bytecode: string | Buffer): ContractInfo | undefined {
         const hash = getCodeHash(bytecode);
 
         if (hash) {
-            return this._mdHashToContractInfo.get(hash[1]);
+            return this._mdHashToContractInfo.get(hash);
         }
 
         return undefined;
@@ -264,7 +270,7 @@ export class ArtifactManager implements IArtifactManager {
         const hash = getCreationCodeHash(creationBytecode);
 
         if (hash) {
-            return this._mdHashToContractInfo.get(hash[1]);
+            return this._mdHashToContractInfo.get(hash);
         }
 
         return undefined;
