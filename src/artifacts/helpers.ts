@@ -94,17 +94,16 @@ function getDeployedBytecodeMdInfo(
     return res;
 }
 
-export function getCodeHash(
-    deplBytecode: UnprefixedHexString | Buffer
-): [string, HexString] | undefined {
+export function getCodeHash(deplBytecode: UnprefixedHexString | Buffer): HexString | undefined {
     const md = getDeployedBytecodeMdInfo(deplBytecode);
 
+    // TODO: Should we prefix the hash with the hash type? bzzr0/ipfs
     if (md.bzzr0 !== undefined) {
-        return ["bzzr0", md.bzzr0];
+        return md.bzzr0;
     }
 
     if (md.ipfs !== undefined) {
-        return ["ipfs", md.ipfs];
+        return md.ipfs;
     }
 
     return undefined;
@@ -112,19 +111,20 @@ export function getCodeHash(
 
 export function getCreationCodeHash(
     creationBytecode: UnprefixedHexString | Buffer
-): [string, HexString] | undefined {
+): HexString | undefined {
     const md = getBytecodeMdInfoHacky(creationBytecode);
 
     if (md === undefined) {
         return undefined;
     }
 
+    // TODO: Should we prefix the hash with the hash type? bzzr0/ipfs
     if (md.bzzr0 !== undefined) {
-        return ["bzzr0", md.bzzr0];
+        return md.bzzr0;
     }
 
     if (md.ipfs !== undefined) {
-        return ["ipfs", md.ipfs];
+        return md.ipfs;
     }
 
     return undefined;

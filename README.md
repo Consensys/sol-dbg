@@ -7,32 +7,31 @@ Small Solidity-level source debugger built around EthereumJS. This is largely in
 
 Currently the debugger gets a trace from the EthereumJS VM, and for each step of the trace tries to compute:
 
+0. Code currently executing and metadata hash for the currently executing code (including creation bytecodes)
 1. The current contract compilation artifact (if one is available).
 2. The source location corresponding to the current step (if a source map is available for the given contract).
 3. The exact AST node that maps to the current step (if ASTs are given).
 4. Whether any event is emitted at this step.
 5. The solidity-level stack trace corresponding to the current step. Note that this stack trace will include both internal and external functions. If we don't have information for some contract in the current call stack, then for that contract we will specify a single "external" call frame, and skip any internal functions. The stack trace contains the decoded function arguments as well.
 
-The main part missing to make this a full-fledged debugger is stack-map inference.
+The main part missing to make this a full-fledged debugger is stack-map inference and computing the values of locals.
 
 # Quckstart
 
-You can use the debugger as follows:
+To use the debugger you need 3 things:
+
+1. The state of the EthereumJS before the problematic transaction. This can be obtained by calling `vm.stateManager.copy()` right before its executed. For example on keeping track of this state check out the  [VMTestRunner](https://github.com/ConsenSys/sol-dbg/blob/main/test/utils/test_runner.ts#L81) class.
+
+2. The actual failing `Transaction` and the `Block` in which you wish it to be replayed. These can be built by calling(where the ... are standard JSON descriptions of the tx/block):
 
 ```typescript
-// Instantiate the debugger
-const artifacts = [ ... list of standard Solc JSON outputs for the contracts we are debugging ... ]
-
-const artifactManager = new ArtifactManager(artifacts);
-const solDbg = new SolTxDebugger(artifactManager);
-
-// First run a transaction against the internal VM in the debugger
-const block = Block.fromBlockData({...});
 const tx = new Transaction({....});
-const stateBefore = solDbg.vm.stateManager.copy();
+const block = Block.fromBlockData({...});
+```
 
-solDbg.web3.runTx({tx, block});
+3. Call the debugger to obtain a trace of the steps, and then work with the trace:
 
+```typescript
 // Call debugTx to get the computed high-level trace
 const trace = await solDbg.debugTx(tx, block, stateBefore);
 
@@ -78,6 +77,8 @@ export interface StepState {
     codeAddress: Address;
     // The code that is currently executing
     code: Buffer;
+    // Hash of the metadata embedded by the Solidity compiler in the end of the bytecode
+    codeHash: HexString;
     // The solidity-level stack trace
     stack: DbgStack;
     // The source code location corresponding to the current opcode

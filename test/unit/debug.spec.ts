@@ -145,7 +145,7 @@ describe(`Local tests`, async () => {
 
                     before(async () => {
                         solDbg = new SolTxDebugger(artifactManager);
-                        runner = new VMTestRunner(solDbg.web3vm);
+                        runner = new VMTestRunner();
                         testJSON = fse.readJsonSync(txFile) as TestCase;
 
                         await runner.runTestCase(testJSON);

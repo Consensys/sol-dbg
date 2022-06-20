@@ -1,7 +1,10 @@
 import { Block } from "@ethereumjs/block";
+import Common from "@ethereumjs/common";
 import { Transaction, TxData } from "@ethereumjs/tx";
+import VM from "@ethereumjs/vm";
 import { RunTxResult } from "@ethereumjs/vm/dist/runTx";
 import { StateManager } from "@ethereumjs/vm/dist/state";
+import { VMContext } from "@remix-project/remix-simulator/src/vm-context";
 import { VmProxy } from "@remix-project/remix-simulator/src/VmProxy";
 import { Account, Address, BN } from "ethereumjs-util";
 import { assert } from "solc-typed-ast";
@@ -75,6 +78,37 @@ export interface TestCase extends BaseTestCase {
     steps: TestStep[];
 }
 
+export class AdjustedVMContext extends VMContext {
+    /**
+     * Skip using `Common` due to it causes failures and restrictions.
+     *
+     * We also want to preserve original StateManager,
+     * as it is not yet exported and therefore is unable to be instantiated here.
+     */
+    createVm(): {
+        vm: VM;
+        web3vm: VmProxy;
+        stateManager: any;
+        common: Common;
+    } {
+        const data = super.createVm(this.currentFork);
+
+        const vm = new VM({
+            stateManager: data.vm.stateManager,
+
+            activatePrecompiles: true,
+            allowUnlimitedContractSize: true
+        });
+
+        data.vm = vm;
+        data.common = vm._common;
+
+        data.web3vm.setVM(vm);
+
+        return data;
+    }
+}
+
 /**
  * Helper class to re-play harvey test cases on a in-memory VmProxy
  */
@@ -85,7 +119,15 @@ export class VMTestRunner {
     private _results: RunTxResult[];
     private _stateRootBeforeTx = new Map<string, StateManager>();
 
-    constructor(provider: VmProxy) {
+    constructor(provider?: VmProxy) {
+        if (provider === undefined) {
+            const vmContext = new AdjustedVMContext();
+
+            const { web3vm } = vmContext.currentVm;
+
+            provider = web3vm;
+        }
+
         this._provider = provider;
         this._txs = [];
         this._results = [];
