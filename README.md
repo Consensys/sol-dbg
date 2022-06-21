@@ -3,7 +3,9 @@
 
 # sol-dbg
 
-Small Solidity-level source debugger built around EthereumJS. This is largely inspired by the remix-debugger. The main difference is that its built to work with incomplete debugging information, and it uses the [solc-typed-ast](https://github.com/ConsenSys/solc-typed-ast) library for dealing with ASTs.
+[WIP] Small Solidity-level source debugger built around EthereumJS. This is largely inspired by the remix-debugger. The main difference is that its built to work with incomplete debugging information, and it uses the [solc-typed-ast](https://github.com/ConsenSys/solc-typed-ast) library for dealing with ASTs.
+
+Warning: This is still a work in progress, so expect bugs!
 
 Currently the debugger gets a trace from the EthereumJS VM, and for each step of the trace tries to compute:
 
