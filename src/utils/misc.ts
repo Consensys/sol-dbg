@@ -242,6 +242,20 @@ export function bigEndianBufToBigint(buf: Buffer): bigint {
     return res;
 }
 
+/**
+ * Convert a big-endian 2's complement encoding to a number. Throws an error if the value doesn't fit.
+ */
+export function bigEndianBufToNumber(buf: Buffer): number {
+    const bigintRes = bigEndianBufToBigint(buf);
+    assert(
+        bigintRes >= BigInt(Number.MIN_SAFE_INTEGER) &&
+            bigintRes <= BigInt(Number.MAX_SAFE_INTEGER),
+        `Bigint ${bigintRes} doesn't fit in number`
+    );
+
+    return Number(bigintRes);
+}
+
 export function bnToBigInt(n: BN): bigint {
     return BigInt("0x" + n.toString(16));
 }
