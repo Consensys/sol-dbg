@@ -17,7 +17,7 @@ function getAllStringsAfterPrefix(hay: string, prefix: string, expLen: number): 
     let off = hay.length;
 
     while (true) {
-        off = hay.lastIndexOf(prefix, off);
+        off = hay.lastIndexOf(prefix, off - 1);
 
         if (off === -1) {
             return res;
@@ -36,7 +36,7 @@ function getAllBuffersAfterPrefix(hay: Buffer, prefix: Buffer, expLen: number): 
     let off = hay.length;
 
     while (true) {
-        off = hay.lastIndexOf(prefix, off);
+        off = hay.lastIndexOf(prefix, off - 1);
 
         if (off === -1) {
             return res;

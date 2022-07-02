@@ -9,6 +9,7 @@ import {
     EnumDefinition,
     FixedBytesType,
     FunctionDefinition,
+    FunctionKind,
     IntType,
     PointerType,
     StringType,
@@ -169,10 +170,22 @@ export function ppStackTrace(
 
         if (frame.callee) {
             if (frame.callee instanceof FunctionDefinition) {
+                let calleeName: string;
+
+                if (frame.callee.isConstructor) {
+                    calleeName = "constructor";
+                } else if (frame.callee.kind === FunctionKind.Fallback) {
+                    calleeName = "fallback";
+                } else if (frame.callee.kind === FunctionKind.Receive) {
+                    calleeName = "receiver";
+                } else {
+                    calleeName = frame.callee.name;
+                }
+
                 funName =
                     (frame.callee.vScope instanceof ContractDefinition
                         ? frame.callee.vScope.name + "."
-                        : "") + frame.callee.name;
+                        : "") + calleeName;
             } else {
                 funName = `<compiler-generated function>@${offset}`;
             }
@@ -217,10 +230,10 @@ export function ppStackTrace(
             }
         } else {
             if (frame.info === undefined || frame.info.ast === undefined) {
-                frameStr = `<deploying unknown contract to ${frame.address.toString()}>`;
+                frameStr = `<deploying unknown contract>`;
             } else {
                 frameStr = `${fileName} `;
-                frameStr += `<deploying ${funName}(${funArgs}) to ${frame.address.toString()}>`;
+                frameStr += `<deploying ${funName}(${funArgs})>`;
             }
         }
 
