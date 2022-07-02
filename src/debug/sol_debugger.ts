@@ -28,6 +28,7 @@ import {
     ZERO_ADDRESS_STRING
 } from "..";
 import { getCodeHash, getCreationCodeHash } from "../artifacts";
+import { bigEndianBufToNumber } from "../utils";
 import { decodeMsgData } from "./abi";
 import { ContractInfo, getOffsetSrc, IArtifactManager } from "./artifact_manager";
 import { isCalldataType2Slots } from "./decoding";
@@ -313,8 +314,8 @@ export class SolTxDebugger {
 
                 if (createsContract(lastOp)) {
                     // Contract creation call
-                    const off = Number(lastStep.evmStack[lastStackTop - 1]);
-                    const size = Number(lastStep.evmStack[lastStackTop - 2]);
+                    const off = bigEndianBufToNumber(lastStep.evmStack[lastStackTop - 1]);
+                    const size = bigEndianBufToNumber(lastStep.evmStack[lastStackTop - 2]);
                     const creationBytecode = lastStep.memory.slice(off, off + size);
 
                     const curFrame = await this.makeCreationFrame(
@@ -333,8 +334,12 @@ export class SolTxDebugger {
 
                     const argSizeStackOff = argStackOff + 1;
 
-                    const argOff = Number(lastStep.evmStack[lastStackTop - argStackOff]);
-                    const argSize = Number(lastStep.evmStack[lastStackTop - argSizeStackOff]);
+                    const argOff = bigEndianBufToNumber(
+                        lastStep.evmStack[lastStackTop - argStackOff]
+                    );
+                    const argSize = bigEndianBufToNumber(
+                        lastStep.evmStack[lastStackTop - argSizeStackOff]
+                    );
 
                     const receiver = wordToAddress(lastStep.evmStack[lastStackTop - 1]);
 
@@ -449,8 +454,8 @@ export class SolTxDebugger {
 
         if (lastStep !== undefined && createsContract(lastStep.op)) {
             const lastStackTop = lastStep.evmStack.length - 1;
-            const off = Number(lastStep.evmStack[lastStackTop - 1]);
-            const size = Number(lastStep.evmStack[lastStackTop - 2]);
+            const off = bigEndianBufToNumber(lastStep.evmStack[lastStackTop - 1]);
+            const size = bigEndianBufToNumber(lastStep.evmStack[lastStackTop - 2]);
             code = lastStep.memory.slice(off, off + size);
             codeMdHash = getCreationCodeHash(code);
         } else if (lastStep === undefined || !lastStep.codeAddress.equals(step.codeAddress)) {

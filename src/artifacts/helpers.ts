@@ -12,48 +12,77 @@ interface ContractMdStruct {
     solc?: string;
 }
 
-function getBytecodeMdInfoHacky(bytecode: string | Buffer): ContractMdStruct | undefined {
-    let rawMd: any;
+function getAllStringsAfterPrefix(hay: string, prefix: string, expLen: number): string[] {
+    const res: string[] = [];
+    let off = hay.length;
 
-    if (typeof bytecode === "string") {
-        const off = bytecode.lastIndexOf("a264");
+    while (true) {
+        off = hay.lastIndexOf(prefix, off);
 
         if (off === -1) {
+            return res;
+        }
+
+        if (off + prefix.length + expLen >= hay.length) {
+            continue;
+        }
+
+        res.push(hay.slice(off + prefix.length, off + prefix.length + expLen));
+    }
+}
+
+function getAllBuffersAfterPrefix(hay: Buffer, prefix: Buffer, expLen: number): Buffer[] {
+    const res: Buffer[] = [];
+    let off = hay.length;
+
+    while (true) {
+        off = hay.lastIndexOf(prefix, off);
+
+        if (off === -1) {
+            return res;
+        }
+
+        if (off + prefix.length + expLen >= hay.length) {
+            continue;
+        }
+
+        res.push(hay.slice(off + prefix.length, off + prefix.length + expLen));
+    }
+}
+
+const ipfsStrPrefix = "64697066735822";
+const ipfsBufPrefix = Buffer.from(ipfsStrPrefix, "hex");
+const swarmStrPrefix = "65627a7a72305820";
+const swarmBufPrefix = Buffer.from(swarmStrPrefix, "hex");
+
+function getBytecodeHashHacky(bytecode: string | Buffer): ContractMdStruct | undefined {
+    if (typeof bytecode === "string") {
+        const ipfsCandidates = new Set(getAllStringsAfterPrefix(bytecode, ipfsStrPrefix, 34));
+        const swarmCandidates = new Set(getAllStringsAfterPrefix(bytecode, swarmStrPrefix, 32));
+
+        if (ipfsCandidates.size + swarmCandidates.size !== 1) {
             return undefined;
         }
 
-        rawMd = Decoder.decodeAllSync(bytecode.slice(off), { encoding: "hex" })[0];
+        if (ipfsCandidates.size === 1) {
+            return { ipfs: [...ipfsCandidates][0] };
+        } else {
+            return { bzzr0: [...swarmCandidates][0] };
+        }
     } else {
-        let off: number;
+        const ipfsCandidates = new Set(getAllBuffersAfterPrefix(bytecode, ipfsBufPrefix, 34));
+        const swarmCandidates = new Set(getAllBuffersAfterPrefix(bytecode, swarmBufPrefix, 32));
 
-        for (
-            off = bytecode.length - 2;
-            off >= 0 && !(bytecode[off] === 0xa2 && bytecode[off + 1] === 0x64);
-            off--
-        );
-
-        if (off < 0) {
+        if (ipfsCandidates.size + swarmCandidates.size !== 1) {
             return undefined;
         }
 
-        rawMd = Decoder.decodeAllSync(bytecode.slice(off), {})[0];
+        if (ipfsCandidates.size === 1) {
+            return { ipfs: "0x" + [...ipfsCandidates][0].toString("hex") };
+        } else {
+            return { bzzr0: "0x" + [...swarmCandidates][0].toString("hex") };
+        }
     }
-
-    const res: ContractMdStruct = {};
-
-    if (rawMd.hasOwnProperty("ipfs")) {
-        res.ipfs = toHexString(rawMd.ipfs);
-    }
-
-    if (rawMd.hasOwnProperty("bzzr0")) {
-        res.bzzr0 = toHexString(rawMd.bzzr);
-    }
-
-    if (rawMd.hasOwnProperty("solc")) {
-        res.solc = `${rawMd.solc[0]}.${rawMd.solc[1]}.${rawMd.solc[2]}`;
-    }
-
-    return res;
 }
 
 function getDeployedBytecodeMdInfo(
@@ -112,7 +141,7 @@ export function getCodeHash(deplBytecode: UnprefixedHexString | Buffer): HexStri
 export function getCreationCodeHash(
     creationBytecode: UnprefixedHexString | Buffer
 ): HexString | undefined {
-    const md = getBytecodeMdInfoHacky(creationBytecode);
+    const md = getBytecodeHashHacky(creationBytecode);
 
     if (md === undefined) {
         return undefined;
