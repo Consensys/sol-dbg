@@ -531,8 +531,8 @@ export class SolTxDebugger {
         let emittedEvent: EventDesc | undefined = undefined;
         // Finally check if an event is being emitted for this step
         if (step.opcode.name.startsWith("LOG")) {
-            const off = Number(evmStack[evmStack.length - 1]);
-            const size = Number(evmStack[evmStack.length - 2]);
+            const off = bigEndianBufToNumber(evmStack[evmStack.length - 1]);
+            const size = bigEndianBufToNumber(evmStack[evmStack.length - 2]);
 
             const nTopics = (step.opcode.name[3] as any) - ("0" as any);
             const payload = memory.slice(off, off + size);
