@@ -28,3 +28,12 @@ jobs:
         cache: 'npm'
     - run: npm ci
     - run: npm test
+    - run: npm coverage
+    - name: Upload coverage to CodeCov
+      uses: codecov/codecov-action@v3
+      with:
+        name: codecov-umbrella
+        directory: ./coverage/
+        files: ./lcov.info
+        fail_ci_if_error: true
+        verbose: true

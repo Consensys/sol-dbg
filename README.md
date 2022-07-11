@@ -1,4 +1,5 @@
 [![NodeJS CI](https://github.com/ConsenSys/sol-dbg/actions/workflows/node.js.yml/badge.svg)](https://github.com/ConsenSys/sol-dbg/actions/workflows/node.js.yml)
+[![Coverage](https://codecov.io/gh/ConsenSys/sol-dbg/branch/main/graph/badge.svg)](https://codecov.io/gh/ConsenSys/sol-dbg)
 [![License: Apache V2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](./LICENSE)
 
 # sol-dbg
