@@ -12,11 +12,11 @@ import {
 import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
 import {
     DecodedBytecodeSourceMapEntry,
+    fastParseBytecodeSourceMapping,
     findContractDef,
     getArtifactCompilerVersion,
     getCodeHash,
     getCreationCodeHash,
-    parseBytecodeSourceMapping,
     PartialBytecodeDescription,
     PartialCompiledContract,
     PartialSolcOutput,
@@ -241,7 +241,7 @@ export class ArtifactManager implements IArtifactManager {
                         ast: contractDef,
                         bytecode: {
                             generatedFileMap,
-                            srcMap: parseBytecodeSourceMapping(
+                            srcMap: fastParseBytecodeSourceMapping(
                                 contractArtifact.evm.bytecode.sourceMap
                             ),
                             offsetToIndexMap: buildOffsetToIndexMap(
@@ -250,7 +250,7 @@ export class ArtifactManager implements IArtifactManager {
                         },
                         deployedBytecode: {
                             generatedFileMap: deployedGeneratedFileMap,
-                            srcMap: parseBytecodeSourceMapping(
+                            srcMap: fastParseBytecodeSourceMapping(
                                 contractArtifact.evm.deployedBytecode.sourceMap
                             ),
                             offsetToIndexMap: buildOffsetToIndexMap(
