@@ -2,6 +2,7 @@ import {
     ArrayType,
     assert,
     DataLocation as SolDataLocation,
+    InferType,
     PointerType,
     TypeNode
 } from "solc-typed-ast";
@@ -14,8 +15,7 @@ import {
     MemoryLocation,
     MemoryLocationKind,
     StepState,
-    StorageLocation,
-    toABIEncodedType
+    StorageLocation
 } from "..";
 import { MAX_ARR_DECODE_LIMIT, uint256 } from "../..";
 import { cd_decodeArrayContents, cd_decodeValue } from "./calldata";
@@ -35,9 +35,9 @@ function solLocToDataKind(loc: SolDataLocation): MemoryLocationKind {
  * Helper to dispatch the decoding of a given type `typ` at a given data location `loc` in a given `state`.
  * to the proper decoding logic (memory, calldata, storage, stack)
  */
-function decodeValInt(typ: TypeNode, loc: DataLocation, state: StepState): any {
+function decodeValInt(typ: TypeNode, loc: DataLocation, state: StepState, infer: InferType): any {
     if (loc.kind === DataLocationKind.Memory) {
-        const res = mem_decodeValue(typ, loc, state.memory);
+        const res = mem_decodeValue(typ, loc, state.memory, infer);
 
         return res === undefined ? res : res[0];
     }
@@ -48,21 +48,21 @@ function decodeValInt(typ: TypeNode, loc: DataLocation, state: StepState): any {
         let abiType: TypeNode;
 
         try {
-            abiType = toABIEncodedType(typ, ABIEncoderVersion.V2);
+            abiType = infer.toABIEncodedType(typ, ABIEncoderVersion.V2);
         } catch (e) {
             return undefined;
         }
 
-        const res = cd_decodeValue(abiType, typ, loc, lastExtFrame.msgData, BigInt(4));
+        const res = cd_decodeValue(abiType, typ, loc, lastExtFrame.msgData, BigInt(4), infer);
 
         return res === undefined ? res : res[0];
     }
 
     if (loc.kind === DataLocationKind.Stack) {
-        return st_decodeValue(typ, loc, state.evmStack);
+        return st_decodeValue(typ, loc, state.evmStack, infer);
     }
 
-    const res = stor_decodeValue(typ, loc, state.storage);
+    const res = stor_decodeValue(typ, loc, state.storage, infer);
 
     return res === undefined ? res : res[0];
 }
@@ -80,8 +80,7 @@ export function isCalldataType2Slots(typ: TypeNode): boolean {
  * Decode a generic value expressed as a `DataView` (i.e. a tuple of type and location) given
  * the dbg state `state` at some step.
  */
-export function decodeValue(view: DataView, state: StepState): any {
-    //console.error(`decodeValue(${ppView(view)})`);
+export function decodeValue(view: DataView, state: StepState, infer: InferType): any {
     const typ = view.type;
     const loc = view.loc;
 
@@ -107,7 +106,7 @@ export function decodeValue(view: DataView, state: StepState): any {
             let abiType: TypeNode;
 
             try {
-                abiType = toABIEncodedType(typ, ABIEncoderVersion.V2);
+                abiType = infer.toABIEncodedType(typ, ABIEncoderVersion.V2);
             } catch (e) {
                 return undefined;
             }
@@ -136,7 +135,8 @@ export function decodeValue(view: DataView, state: StepState): any {
                 typ.to as ArrayType,
                 off,
                 Number(len),
-                lastExtFrame.msgData
+                lastExtFrame.msgData,
+                infer
             );
 
             return res === undefined ? res : res[0];
@@ -155,13 +155,13 @@ export function decodeValue(view: DataView, state: StepState): any {
             };
         }
 
-        const res = decodeValInt(typ.to, pointedToLoc, state);
+        const res = decodeValInt(typ.to, pointedToLoc, state, infer);
 
         //console.error(`decodeValue: res ${res}`);
         return res;
     }
 
-    const res = decodeValInt(typ, loc, state);
+    const res = decodeValInt(typ, loc, state, infer);
     //console.error(`decodeValue: res ${res}`);
 
     return res;

@@ -6,6 +6,75 @@ export type DecodedBytecodeSourceMapEntry = {
     jump: "i" | "o" | "-" | undefined;
 };
 
+export function fastParseBytecodeSourceMapping(sourceMap: string): DecodedBytecodeSourceMapEntry[] {
+    const res: DecodedBytecodeSourceMapEntry[] = [];
+    let curNum: number | undefined = undefined;
+    let elIdx = 0;
+
+    let sign = 1;
+    let start = 0;
+    let length = 0;
+    let sourceIndex = 0;
+    let jump: "i" | "o" | "-" | undefined;
+
+    for (let i = 0; i < sourceMap.length; i++) {
+        const c = sourceMap.charCodeAt(i);
+
+        if (c === 45 /*-*/) {
+            sign = -1;
+        }
+
+        if (c == 59 /*;*/ || c == 58 /*:*/) {
+            if (curNum !== undefined) {
+                if (elIdx === 0) {
+                    start = sign * curNum;
+                } else if (elIdx === 1) {
+                    length = sign * curNum;
+                } else if (elIdx === 2) {
+                    sourceIndex = sign * curNum;
+                }
+            }
+
+            curNum = undefined;
+            sign = 1;
+
+            if (c == 59 /*;*/) {
+                res.push({
+                    start,
+                    length,
+                    sourceIndex,
+                    jump
+                });
+
+                elIdx = 0;
+            } else {
+                elIdx++;
+            }
+
+            continue;
+        }
+
+        // jump specifier
+        if (c == 105 /*i*/ || c == 111 /*o*/ || c == 45 /*-*/) {
+            jump = String.fromCharCode(c) as "i" | "o" | "-";
+            continue;
+        }
+
+        // Must be a digit
+        const digit = c - 48; /*0*/
+        curNum = curNum === undefined ? digit : curNum * 10 + digit;
+    }
+
+    res.push({
+        start,
+        length,
+        sourceIndex,
+        jump
+    });
+
+    return res;
+}
+
 export function parseBytecodeSourceMapping(sourceMap: string): DecodedBytecodeSourceMapEntry[] {
     return sourceMap
         .split(";")

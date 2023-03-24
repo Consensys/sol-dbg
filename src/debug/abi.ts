@@ -10,18 +10,17 @@ import {
     enumToIntType,
     FixedBytesType,
     FunctionDefinition,
+    InferType,
     IntType,
     MappingType,
     PointerType,
     StringType,
     StructDefinition,
     TupleType,
-    typeNameToTypeNode,
     TypeNode,
     UserDefinedType,
     UserDefinedValueTypeDefinition,
-    VariableDeclaration,
-    variableDeclarationToTypeNode
+    VariableDeclaration
 } from "solc-typed-ast";
 import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
 import { DataLocationKind, DataView } from ".";
@@ -46,7 +45,7 @@ export function changeToLocation(typ: TypeNode, newLoc: SolDataLocation): TypeNo
     }
 
     if (typ instanceof TupleType) {
-        return new TupleType(typ.elements.map((elT) => changeToLocation(elT, newLoc)));
+        return new TupleType(typ.elements.map((elT) => changeToLocation(elT as TypeNode, newLoc)));
     }
 
     if (
@@ -97,6 +96,7 @@ function abiStaticTypeSize(typ: TypeNode): number {
         let res = 0;
 
         for (const elT of typ.elements) {
+            assert(elT !== null, ``);
             res += abiStaticTypeSize(elT);
         }
 
@@ -119,14 +119,15 @@ export function decodeMsgData(
     callee: FunctionDefinition | VariableDeclaration,
     data: Buffer,
     kind: DataLocationKind.Memory | DataLocationKind.CallData,
+    infer: InferType,
     encoderVersion: ABIEncoderVersion
 ): Array<[string, DataView | undefined]> {
     const res: Array<[string, DataView | undefined]> = [];
 
     const selector =
         callee instanceof FunctionDefinition
-            ? getFunctionSelector(callee, encoderVersion)
-            : callee.getterCanonicalSignatureHash(encoderVersion);
+            ? getFunctionSelector(callee, infer)
+            : infer.signatureHash(callee);
 
     assert(
         selector === data.slice(0, 4).toString("hex"),
@@ -137,16 +138,16 @@ export function decodeMsgData(
         callee instanceof FunctionDefinition
             ? callee.vParameters.vParameters.map((argDef) => [
                   argDef.name,
-                  variableDeclarationToTypeNode(argDef)
+                  infer.variableDeclarationToTypeNode(argDef)
               ])
-            : callee.getterArgsAndReturn()[0].map((typ, i) => [`ARG_${i}`, typ]);
+            : infer.getterArgsAndReturn(callee)[0].map((typ, i) => [`ARG_${i}`, typ]);
 
     let staticOff = 4;
 
     const len = data.length;
 
     for (const [name, originalType] of formals) {
-        const typ = toABIEncodedType(originalType, encoderVersion);
+        const typ = toABIEncodedType(originalType, infer, encoderVersion);
         const staticSize = abiStaticTypeSize(typ);
         const loc =
             staticOff + staticSize <= len ? { kind, address: BigInt(staticOff) } : undefined;
@@ -191,6 +192,7 @@ function isTypeEncodingDynamic(typ: TypeNode): boolean {
     // Tuples in calldata with static elements
     if (typ instanceof TupleType) {
         for (const elT of typ.elements) {
+            assert(elT !== null, ``);
             if (isTypeEncodingDynamic(elT)) {
                 return true;
             }
@@ -215,13 +217,17 @@ function isTypeEncodingDynamic(typ: TypeNode): boolean {
  *
  * @see https://docs.soliditylang.org/en/latest/abi-spec.html
  */
-export function toABIEncodedType(type: TypeNode, encoderVersion: ABIEncoderVersion): TypeNode {
+export function toABIEncodedType(
+    type: TypeNode,
+    infer: InferType,
+    encoderVersion: ABIEncoderVersion
+): TypeNode {
     if (type instanceof MappingType) {
         throw new Error("Cannot abi-encode mapping types");
     }
 
     if (type instanceof ArrayType) {
-        const encodedElementT = toABIEncodedType(type.elementT, encoderVersion);
+        const encodedElementT = toABIEncodedType(type.elementT, infer, encoderVersion);
 
         if (type.size !== undefined) {
             const elements = [];
@@ -237,14 +243,14 @@ export function toABIEncodedType(type: TypeNode, encoderVersion: ABIEncoderVersi
     }
 
     if (type instanceof PointerType) {
-        const toT = toABIEncodedType(type.to, encoderVersion);
+        const toT = toABIEncodedType(type.to, infer, encoderVersion);
 
         return isTypeEncodingDynamic(toT) ? new PointerType(toT, type.location) : toT;
     }
 
     if (type instanceof UserDefinedType) {
         if (type.definition instanceof UserDefinedValueTypeDefinition) {
-            return typeNameToTypeNode(type.definition.underlyingType);
+            return infer.typeNameToTypeNode(type.definition.underlyingType);
         }
 
         if (type.definition instanceof ContractDefinition) {
@@ -262,10 +268,12 @@ export function toABIEncodedType(type: TypeNode, encoderVersion: ABIEncoderVersi
             );
 
             const fieldTs = type.definition.vMembers.map((fieldT) =>
-                variableDeclarationToTypeNode(fieldT)
+                infer.variableDeclarationToTypeNode(fieldT)
             );
 
-            return new TupleType(fieldTs.map((fieldT) => toABIEncodedType(fieldT, encoderVersion)));
+            return new TupleType(
+                fieldTs.map((fieldT) => toABIEncodedType(fieldT, infer, encoderVersion))
+            );
         }
     }
 

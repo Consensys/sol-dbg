@@ -10,16 +10,15 @@ import {
     EnumDefinition,
     enumToIntType,
     FixedBytesType,
+    InferType,
     IntType,
     MappingType,
     PointerType,
     StringType,
     StructDefinition,
-    typeNameToTypeNode,
     TypeNode,
     UserDefinedType,
-    UserDefinedValueTypeDefinition,
-    variableDeclarationToTypeNode
+    UserDefinedValueTypeDefinition
 } from "solc-typed-ast";
 import { changeToLocation, Storage, StorageLocation } from "..";
 import { bigEndianBufToBigint, bigIntToBuf, fits, MAX_ARR_DECODE_LIMIT, uint256 } from "../..";
@@ -201,7 +200,7 @@ function stor_decodeAddress(
 /**
  * Compute the 'static' size that a variable of type `typ` would take up in storage
  */
-function typeStaticStorSize(typ: TypeNode): number {
+function typeStaticStorSize(typ: TypeNode, infer: InferType): number {
     if (typ instanceof IntType) {
         return typ.nBits / 8;
     }
@@ -224,14 +223,17 @@ function typeStaticStorSize(typ: TypeNode): number {
         }
 
         if (typ.definition instanceof UserDefinedValueTypeDefinition) {
-            return typeStaticStorSize(typeNameToTypeNode(typ.definition.underlyingType));
+            return typeStaticStorSize(
+                infer.typeNameToTypeNode(typ.definition.underlyingType),
+                infer
+            );
         }
     }
 
     throw new Error(`NYI typStaticStorSize(${typ.pp()})`);
 }
 
-function typeFitsInLoc(typ: TypeNode, loc: StorageLocation): boolean {
+function typeFitsInLoc(typ: TypeNode, loc: StorageLocation, infer: InferType): boolean {
     if (typ instanceof PointerType) {
         if (
             typ.to instanceof ArrayType ||
@@ -246,7 +248,7 @@ function typeFitsInLoc(typ: TypeNode, loc: StorageLocation): boolean {
         throw new Error(`NYI firstLocationOfTypeAfter(${typ.pp()},...)`);
     }
 
-    const size = typeStaticStorSize(typ);
+    const size = typeStaticStorSize(typ, infer);
 
     assert(size <= 32, `Unexpected type ${typ.pp()} spanning more than a single word`);
 
@@ -261,8 +263,8 @@ function nextWord(loc: StorageLocation): StorageLocation {
     };
 }
 
-function roundLocToType(loc: StorageLocation, typ: TypeNode): StorageLocation {
-    if (typeFitsInLoc(typ, loc)) {
+function roundLocToType(loc: StorageLocation, typ: TypeNode, infer: InferType): StorageLocation {
+    if (typeFitsInLoc(typ, loc, infer)) {
         return loc;
     }
 
@@ -277,7 +279,8 @@ function roundLocToType(loc: StorageLocation, typ: TypeNode): StorageLocation {
 function stor_decodeStruct(
     typ: UserDefinedType,
     loc: StorageLocation,
-    storage: Storage
+    storage: Storage,
+    infer: InferType
 ): undefined | [any, StorageLocation] {
     const def = typ.definition;
 
@@ -296,16 +299,16 @@ function stor_decodeStruct(
         let fieldGenT: TypeNode;
 
         try {
-            fieldGenT = variableDeclarationToTypeNode(field);
+            fieldGenT = infer.variableDeclarationToTypeNode(field);
         } catch (e) {
             return undefined;
         }
 
         const fieldT = changeToLocation(fieldGenT, SolDataLocation.Storage);
 
-        loc = roundLocToType(loc, fieldT);
+        loc = roundLocToType(loc, fieldT, infer);
 
-        const fieldVal = stor_decodeValue(fieldT, loc, storage);
+        const fieldVal = stor_decodeValue(fieldT, loc, storage, infer);
 
         if (fieldVal === undefined) {
             return undefined;
@@ -380,7 +383,8 @@ function stor_decodeString(
 function stor_decodeArray(
     typ: ArrayType,
     loc: StorageLocation,
-    storage: Storage
+    storage: Storage,
+    infer: InferType
 ): undefined | [any[], StorageLocation] {
     let numLen: number;
     let contentsLoc: StorageLocation;
@@ -413,7 +417,7 @@ function stor_decodeArray(
     }
 
     for (let i = 0; i < numLen; i++) {
-        const elRes = stor_decodeValue(typ.elementT, contentsLoc, storage);
+        const elRes = stor_decodeValue(typ.elementT, contentsLoc, storage, infer);
 
         if (elRes === undefined) {
             return undefined;
@@ -421,7 +425,7 @@ function stor_decodeArray(
 
         res.push(elRes[0]);
 
-        contentsLoc = roundLocToType(elRes[1], typ.elementT);
+        contentsLoc = roundLocToType(elRes[1], typ.elementT, infer);
     }
 
     return [res, nextWord(loc)];
@@ -445,7 +449,8 @@ function stor_decodeArray(
 function stor_decodePointer(
     typ: PointerType,
     loc: StorageLocation,
-    storage: Storage
+    storage: Storage,
+    infer: InferType
 ): undefined | [any, StorageLocation] {
     if (typ.to instanceof BytesType) {
         return stor_decodeBytes(loc, storage);
@@ -457,12 +462,12 @@ function stor_decodePointer(
 
     if (typ.to instanceof UserDefinedType) {
         if (typ.to.definition instanceof StructDefinition) {
-            return stor_decodeStruct(typ.to, loc, storage);
+            return stor_decodeStruct(typ.to, loc, storage, infer);
         }
     }
 
     if (typ.to instanceof ArrayType) {
-        return stor_decodeArray(typ.to, loc, storage);
+        return stor_decodeArray(typ.to, loc, storage, infer);
     }
 
     throw new Error(`NYI stor_decodePointer(${typ.pp()},...)`);
@@ -471,7 +476,8 @@ function stor_decodePointer(
 export function stor_decodeValue(
     typ: TypeNode,
     loc: StorageLocation,
-    storage: Storage
+    storage: Storage,
+    infer: InferType
 ): undefined | [any, StorageLocation] {
     if (typ instanceof IntType) {
         return stor_decodeInt(typ, loc, storage);
@@ -490,7 +496,7 @@ export function stor_decodeValue(
     }
 
     if (typ instanceof PointerType) {
-        return stor_decodePointer(typ, loc, storage);
+        return stor_decodePointer(typ, loc, storage, infer);
     }
 
     if (typ instanceof BytesType) {
@@ -502,12 +508,12 @@ export function stor_decodeValue(
     }
 
     if (typ instanceof ArrayType) {
-        return stor_decodeArray(typ, loc, storage);
+        return stor_decodeArray(typ, loc, storage, infer);
     }
 
     if (typ instanceof UserDefinedType) {
         if (typ.definition instanceof StructDefinition) {
-            return stor_decodeStruct(typ, loc, storage);
+            return stor_decodeStruct(typ, loc, storage, infer);
         }
 
         if (typ.definition instanceof ContractDefinition) {
@@ -519,9 +525,9 @@ export function stor_decodeValue(
         }
 
         if (typ.definition instanceof UserDefinedValueTypeDefinition) {
-            const underlyingType = typeNameToTypeNode(typ.definition.underlyingType);
+            const underlyingType = infer.typeNameToTypeNode(typ.definition.underlyingType);
 
-            return stor_decodeValue(underlyingType, loc, storage);
+            return stor_decodeValue(underlyingType, loc, storage, infer);
         }
     }
 

@@ -6,6 +6,7 @@ import {
     ASTReader,
     ContractDefinition,
     getABIEncoderVersion,
+    InferType,
     SourceUnit
 } from "solc-typed-ast";
 import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
@@ -33,6 +34,7 @@ export interface IArtifactManager {
     contracts(): ContractInfo[];
     // TODO: Need a better way of identifying runtime contracts than (bytecode, isCreation)
     getFileById(id: number, code: string | Buffer, isCreation: boolean): SourceFileInfo | undefined;
+    infer(version: string): InferType;
 }
 
 export interface BytecodeInfo {
@@ -126,6 +128,24 @@ export class ArtifactManager implements IArtifactManager {
     private _artifacts: ArtifactInfo[];
     private _contracts: ContractInfo[];
     private _mdHashToContractInfo: Map<string, ContractInfo>;
+    private _inferCache = new Map<string, InferType>();
+
+    /**
+     * Helper to pick a canonical ABI encode version for a set of units.
+     * For now just pick the highest version among the files
+     * @todo (dimo) I am not sure this function is correct. Seems to work for now
+     */
+    private pickABIEncoderVersion(units: SourceUnit[], compilerVersion: string): ABIEncoderVersion {
+        const versions = new Set<ABIEncoderVersion>(
+            units.map((unit) => getABIEncoderVersion(unit, compilerVersion))
+        );
+
+        if (versions.has(ABIEncoderVersion.V2)) {
+            return ABIEncoderVersion.V2;
+        }
+
+        return ABIEncoderVersion.V1;
+    }
 
     constructor(artifacts: PartialSolcOutput[]) {
         this._artifacts = [];
@@ -139,7 +159,7 @@ export class ArtifactManager implements IArtifactManager {
             assert(compilerVersion !== undefined, `Couldn't find compiler version for artifact`);
 
             const units = reader.read(artifact);
-            const abiEncoderVersion = getABIEncoderVersion(units, compilerVersion);
+            const abiEncoderVersion = this.pickABIEncoderVersion(units, compilerVersion);
             const fileMap = new Map<number, SourceFileInfo>();
             const unitMap = new Map<number, SourceUnit>(units.map((unit) => [unit.id, unit]));
 
@@ -310,5 +330,13 @@ export class ArtifactManager implements IArtifactManager {
 
     contracts(): ContractInfo[] {
         return this._contracts;
+    }
+
+    infer(version: string): InferType {
+        if (!this._inferCache.has(version)) {
+            this._inferCache.set(version, new InferType(version));
+        }
+
+        return this._inferCache.get(version) as InferType;
     }
 }

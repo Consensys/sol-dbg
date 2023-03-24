@@ -6,10 +6,10 @@ import {
     assert,
     ContractDefinition,
     FunctionDefinition,
+    InferType,
     IntType,
     SourceUnit
 } from "solc-typed-ast";
-import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
 import { HexString, UnprefixedHexString } from "..";
 import { DataLocation, DataLocationKind, DataView, Stack, Storage } from "../debug/sol_debugger";
 
@@ -266,14 +266,14 @@ export function stripOx(s: HexString): UnprefixedHexString {
 
 export function getFunctionSelector(
     f: FunctionDefinition,
-    encoderVersion = ABIEncoderVersion.V2
+    infer: InferType
 ): UnprefixedHexString | undefined {
     if (f.raw !== undefined && f.raw.functionSelector !== undefined) {
         return f.raw.functionSelector;
     }
 
     try {
-        return f.canonicalSignatureHash(encoderVersion);
+        return infer.signatureHash(f);
     } catch (e) {
         return undefined;
     }

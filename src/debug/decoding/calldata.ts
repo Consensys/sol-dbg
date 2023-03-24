@@ -7,14 +7,14 @@ import {
     BytesType,
     DataLocation as SolDataLocation,
     FixedBytesType,
+    InferType,
     IntType,
     PointerType,
     StringType,
     StructDefinition,
     TupleType,
     TypeNode,
-    UserDefinedType,
-    variableDeclarationToTypeNode
+    UserDefinedType
 } from "solc-typed-ast";
 import { CalldataLocation, changeToLocation, DataLocation, DataLocationKind } from "..";
 import {
@@ -149,7 +149,8 @@ export function cd_decodeArrayContents(
     origType: ArrayType | undefined,
     arrOffset: bigint,
     numLen: number,
-    calldata: Memory
+    calldata: Memory,
+    infer: InferType
 ): undefined | [any[], number] {
     let arrBytesSize = 0;
     const arrBaseOffset = arrOffset;
@@ -164,7 +165,8 @@ export function cd_decodeArrayContents(
             elT,
             { kind: DataLocationKind.CallData, address: arrOffset },
             calldata,
-            arrBaseOffset
+            arrBaseOffset,
+            infer
         );
 
         if (elementTuple === undefined) {
@@ -186,12 +188,19 @@ function cd_decodeArray(
     abiType: ArrayType,
     origType: ArrayType | undefined,
     loc: CalldataLocation,
-    calldata: Memory
+    calldata: Memory,
+    infer: InferType
 ): undefined | [any[], number] {
     let arrOffset = loc.address;
     let arrBytesSize = 0;
 
-    const len = cd_decodeInt(uint256, loc, calldata);
+    let len: [bigint, number] | undefined;
+
+    if (abiType.size !== undefined) {
+        len = [abiType.size, 0];
+    } else {
+        len = cd_decodeInt(uint256, loc, calldata);
+    }
 
     if (len == undefined) {
         return undefined;
@@ -206,7 +215,14 @@ function cd_decodeArray(
     arrOffset += BigInt(len[1]);
     arrBytesSize += len[1];
 
-    const contentsRes = cd_decodeArrayContents(abiType, origType, arrOffset, numLen, calldata);
+    const contentsRes = cd_decodeArrayContents(
+        abiType,
+        origType,
+        arrOffset,
+        numLen,
+        calldata,
+        infer
+    );
 
     if (contentsRes === undefined) {
         return undefined;
@@ -219,7 +235,8 @@ function cd_decodeTuple(
     abiType: TupleType,
     origType: TypeNode | undefined,
     loc: CalldataLocation,
-    calldata: Memory
+    calldata: Memory,
+    infer: InferType
 ): undefined | [any[], number] {
     let tupleOffset: bigint = loc.address;
     let size = 0;
@@ -252,7 +269,10 @@ function cd_decodeTuple(
 
         try {
             origElementTs = def.vMembers.map((fieldDef) =>
-                changeToLocation(variableDeclarationToTypeNode(fieldDef), SolDataLocation.CallData)
+                changeToLocation(
+                    infer.variableDeclarationToTypeNode(fieldDef),
+                    SolDataLocation.CallData
+                )
             );
         } catch (e) {
             return undefined;
@@ -273,12 +293,14 @@ function cd_decodeTuple(
                 ? origElementTs
                 : origElementTs[i];
 
+        assert(fieldT !== null, ``);
         const decodeRes = cd_decodeValue(
             fieldT,
             origElementT,
             { kind: loc.kind, address: tupleOffset },
             calldata,
-            tupleBase
+            tupleBase,
+            infer
         );
 
         if (decodeRes === undefined) {
@@ -312,7 +334,8 @@ function cd_decodePointer(
     origType: PointerType | undefined,
     loc: CalldataLocation,
     calldata: Memory,
-    callDataBaseOff: bigint
+    callDataBaseOff: bigint,
+    infer: InferType
 ): undefined | [any, number] {
     const offRes = cd_decodeInt(uint256, loc, calldata);
 
@@ -336,7 +359,8 @@ function cd_decodePointer(
         origPointedToType,
         pointedToLoc,
         calldata,
-        callDataBaseOff
+        callDataBaseOff,
+        infer
     );
 
     if (pointedToValue === undefined) {
@@ -346,12 +370,49 @@ function cd_decodePointer(
     return [pointedToValue[0], size];
 }
 
+export function isABITypeStaticSized(type: TypeNode): boolean {
+    if (type instanceof ArrayType) {
+        return type.size !== undefined && isABITypeStaticSized(type.elementT);
+    }
+
+    if (type instanceof PointerType) {
+        return isABITypeStaticSized(type.to);
+    }
+
+    if (type instanceof TupleType) {
+        for (const elT of type.elements) {
+            assert(elT !== null, ``);
+            if (!isABITypeStaticSized(elT)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    if (type instanceof StringType || type instanceof BytesType) {
+        return false;
+    }
+
+    if (
+        type instanceof IntType ||
+        type instanceof AddressType ||
+        type instanceof BoolType ||
+        type instanceof FixedBytesType
+    ) {
+        return true;
+    }
+
+    throw new Error(`NYI isABITypeStaticSized(${type.pp()})`);
+}
+
 export function cd_decodeValue(
     abiType: TypeNode,
     origType: TypeNode | undefined,
     loc: CalldataLocation,
     calldata: Memory,
-    callDataBaseOff = BigInt(4)
+    callDataBaseOff = BigInt(4),
+    infer: InferType
 ): undefined | [any, number] {
     /*
     console.error(
@@ -382,7 +443,7 @@ export function cd_decodeValue(
             origType
         );
 
-        return cd_decodeArray(abiType, origType, loc, calldata);
+        return cd_decodeArray(abiType, origType, loc, calldata, infer);
     }
 
     if (abiType instanceof BytesType) {
@@ -394,7 +455,7 @@ export function cd_decodeValue(
     }
 
     if (abiType instanceof TupleType) {
-        return cd_decodeTuple(abiType, origType, loc, calldata);
+        return cd_decodeTuple(abiType, origType, loc, calldata, infer);
     }
 
     if (abiType instanceof PointerType) {
@@ -404,7 +465,21 @@ export function cd_decodeValue(
             origType
         );
 
-        return cd_decodePointer(abiType, origType, loc, calldata, callDataBaseOff);
+        // Fixed-sized data types are emitted inline, not in the dynamic region
+        if (isABITypeStaticSized(abiType)) {
+            const origPointedToType = origType === undefined ? undefined : origType.to;
+
+            return cd_decodeValue(
+                abiType.to,
+                origPointedToType,
+                loc,
+                calldata,
+                callDataBaseOff,
+                infer
+            );
+        }
+
+        return cd_decodePointer(abiType, origType, loc, calldata, callDataBaseOff, infer);
     }
 
     throw new Error(`NYI decoding ${abiType.pp()}`);

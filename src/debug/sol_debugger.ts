@@ -11,8 +11,7 @@ import {
     FunctionDefinition,
     StateVariableVisibility,
     TypeNode,
-    VariableDeclaration,
-    variableDeclarationToTypeNode
+    VariableDeclaration
 } from "solc-typed-ast";
 import {
     bigEndianBufToBigint,
@@ -270,7 +269,7 @@ async function getStorage(manager: StateManager, addr: Address): Promise<Storage
  */
 export class SolTxDebugger {
     /// ArtifactManager containing all the solc standard json.
-    private artifactManager: IArtifactManager;
+    public readonly artifactManager: IArtifactManager;
 
     constructor(artifactManager: IArtifactManager) {
         this.artifactManager = artifactManager;
@@ -397,7 +396,8 @@ export class SolTxDebugger {
                 ast instanceof FunctionDefinition ||
                 (ast instanceof VariableDeclaration && ast.stateVariable)
             ) {
-                args = this.decodeFunArgs(ast, state.evmStack);
+                assert(curExtFrame.info !== undefined, ``);
+                args = this.decodeFunArgs(ast, state.evmStack, curExtFrame.info);
             }
 
             const newFrame: InternalCallFrame = {
@@ -660,8 +660,9 @@ export class SolTxDebugger {
         if (contractInfo && contractInfo.ast) {
             const contract = contractInfo.ast;
             const abiVersion = contractInfo.artifact.abiEncoderVersion;
+            const infer = this.artifactManager.infer(contractInfo.artifact.compilerVersion);
             const matchingFuns = contract.vFunctions.filter(
-                (fun) => getFunctionSelector(fun) === selector
+                (fun) => getFunctionSelector(fun, infer) === selector
             );
 
             if (matchingFuns.length === 1) {
@@ -671,7 +672,7 @@ export class SolTxDebugger {
                     try {
                         return (
                             vDef.visibility === StateVariableVisibility.Public &&
-                            vDef.getterCanonicalSignatureHash(abiVersion) === selector
+                            infer.signatureHash(vDef)
                         );
                     } catch (e) {
                         return false;
@@ -685,7 +686,13 @@ export class SolTxDebugger {
 
             if (callee !== undefined) {
                 try {
-                    args = decodeMsgData(callee, data, DataLocationKind.CallData, abiVersion);
+                    args = decodeMsgData(
+                        callee,
+                        data,
+                        DataLocationKind.CallData,
+                        infer,
+                        abiVersion
+                    );
                 } catch (e) {
                     args = undefined;
                 }
@@ -743,19 +750,21 @@ export class SolTxDebugger {
      */
     private decodeFunArgs(
         callee: FunctionDefinition | VariableDeclaration,
-        stack: Stack
+        stack: Stack,
+        contractInfo: ContractInfo
     ): Array<[string, DataView]> | undefined {
         const res: Array<[string, DataView]> = [];
         let formals: Array<[string, TypeNode]>;
+        const infer = this.artifactManager.infer(contractInfo.artifact.compilerVersion);
 
         try {
             formals =
                 callee instanceof FunctionDefinition
                     ? callee.vParameters.vParameters.map((argDef) => [
                           argDef.name,
-                          variableDeclarationToTypeNode(argDef)
+                          infer.variableDeclarationToTypeNode(argDef)
                       ])
-                    : callee.getterArgsAndReturn()[0].map((typ, i) => [`ARG_${i}`, typ]);
+                    : infer.getterArgsAndReturn(callee)[0].map((typ, i) => [`ARG_${i}`, typ]);
         } catch (e) {
             // `variableDeclarationToTypeNode` may fail when referencing structs/contracts that are defined
             // in SourceUnits that are missing

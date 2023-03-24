@@ -7,8 +7,8 @@ import {
     EnumDefinition,
     enumToIntType,
     FixedBytesType,
+    InferType,
     IntType,
-    typeNameToTypeNode,
     TypeNode,
     UserDefinedType,
     UserDefinedValueTypeDefinition
@@ -87,7 +87,12 @@ function st_decodeEnum(def: EnumDefinition, loc: StackLocation, stack: Stack): u
  * Decode a single value from a stack location. All values in the stack span exactly
  * one slot (32 bytes). Returns the decoded value or undefined (if it failed decoding for some reason)
  */
-export function st_decodeValue(typ: TypeNode, loc: StackLocation, stack: Stack): any {
+export function st_decodeValue(
+    typ: TypeNode,
+    loc: StackLocation,
+    stack: Stack,
+    infer: InferType
+): any {
     //console.error(`st_decodeValue(${typ.pp()}, ${ppLoc(loc)})`);
     if (typ instanceof IntType) {
         return st_decodeInt(typ, loc, stack);
@@ -117,9 +122,9 @@ export function st_decodeValue(typ: TypeNode, loc: StackLocation, stack: Stack):
         }
 
         if (def instanceof UserDefinedValueTypeDefinition) {
-            const underlyingType = typeNameToTypeNode(def.underlyingType);
+            const underlyingType = infer.typeNameToTypeNode(def.underlyingType);
 
-            return st_decodeValue(underlyingType, loc, stack);
+            return st_decodeValue(underlyingType, loc, stack, infer);
         }
 
         throw new Error(`NYI decoding user defined type ${typ.pp()} from the stack`);

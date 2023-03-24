@@ -10,6 +10,7 @@ import {
     EnumDefinition,
     enumToIntType,
     FixedBytesType,
+    InferType,
     IntType,
     PointerType,
     specializeType,
@@ -17,7 +18,6 @@ import {
     StructDefinition,
     TupleType,
     TypeName,
-    typeNameToTypeNode,
     TypeNode,
     UserDefinedType,
     UserDefinedValueTypeDefinition
@@ -153,7 +153,8 @@ function mem_decodeString(loc: LinearMemoryLocation, memory: Memory): undefined 
 function mem_decodeArray(
     typ: ArrayType,
     loc: LinearMemoryLocation,
-    memory: Memory
+    memory: Memory,
+    infer: InferType
 ): undefined | [any[], number] {
     let arrOffset = loc.address;
     let arrBytesSize = 0;
@@ -189,7 +190,8 @@ function mem_decodeArray(
         const elementTuple = mem_decodeValue(
             typ.elementT,
             { kind: loc.kind, address: arrOffset },
-            memory
+            memory,
+            infer
         );
 
         if (elementTuple === undefined) {
@@ -210,7 +212,8 @@ function mem_decodeArray(
 function mem_decodeTuple(
     typ: TupleType,
     loc: LinearMemoryLocation,
-    memory: Memory
+    memory: Memory,
+    infer: InferType
 ): undefined | [any[], number] {
     let tupleOffset: bigint = loc.address;
     let size = 0;
@@ -218,7 +221,13 @@ function mem_decodeTuple(
     const res: any[] = [];
 
     for (const field of typ.elements) {
-        const decodeRes = mem_decodeValue(field, { kind: loc.kind, address: tupleOffset }, memory);
+        assert(field !== null, ``);
+        const decodeRes = mem_decodeValue(
+            field,
+            { kind: loc.kind, address: tupleOffset },
+            memory,
+            infer
+        );
 
         if (decodeRes === undefined) {
             return undefined;
@@ -238,7 +247,8 @@ function mem_decodeTuple(
 function mem_decodeStruct(
     def: StructDefinition,
     loc: LinearMemoryLocation,
-    memory: Memory
+    memory: Memory,
+    infer: InferType
 ): undefined | [any, number] {
     const res: any = {};
 
@@ -248,11 +258,16 @@ function mem_decodeStruct(
     for (let i = 0; i < def.vMembers.length; i++) {
         const field = def.vMembers[i];
         const fieldT = specializeType(
-            typeNameToTypeNode(field.vType as TypeName),
+            infer.typeNameToTypeNode(field.vType as TypeName),
             SolDataLocation.Memory
         );
 
-        const fieldRes = mem_decodeValue(fieldT, { kind: loc.kind, address: offset }, memory);
+        const fieldRes = mem_decodeValue(
+            fieldT,
+            { kind: loc.kind, address: offset },
+            memory,
+            infer
+        );
 
         if (fieldRes === undefined) {
             return undefined;
@@ -270,7 +285,8 @@ function mem_decodeStruct(
 function mem_decodePointer(
     typ: PointerType,
     loc: LinearMemoryLocation,
-    memory: Memory
+    memory: Memory,
+    infer: InferType
 ): undefined | [any, number] {
     assert(
         typ.location === SolDataLocation.Memory,
@@ -290,7 +306,7 @@ function mem_decodePointer(
         address: offRes[0]
     };
 
-    const pointedToValue = mem_decodeValue(typ.to, pointedToLoc, memory);
+    const pointedToValue = mem_decodeValue(typ.to, pointedToLoc, memory, infer);
 
     if (pointedToValue === undefined) {
         return undefined;
@@ -302,7 +318,8 @@ function mem_decodePointer(
 export function mem_decodeValue(
     typ: TypeNode,
     loc: LinearMemoryLocation,
-    memory: Memory
+    memory: Memory,
+    infer: InferType
 ): undefined | [any, number] {
     //console.error(`mem_decodeValue(${typ.pp()}, ${ppLoc(loc)})`);
     if (typ instanceof IntType) {
@@ -333,20 +350,20 @@ export function mem_decodeValue(
         }
 
         if (def instanceof UserDefinedValueTypeDefinition) {
-            const underlyingType = typeNameToTypeNode(def.underlyingType);
+            const underlyingType = infer.typeNameToTypeNode(def.underlyingType);
 
-            return mem_decodeValue(underlyingType, loc, memory);
+            return mem_decodeValue(underlyingType, loc, memory, infer);
         }
 
         if (def instanceof StructDefinition) {
-            return mem_decodeStruct(def, loc, memory);
+            return mem_decodeStruct(def, loc, memory, infer);
         }
 
         throw new Error(`NYI decoding user defined type ${typ.pp()}`);
     }
 
     if (typ instanceof ArrayType) {
-        return mem_decodeArray(typ, loc, memory);
+        return mem_decodeArray(typ, loc, memory, infer);
     }
 
     if (typ instanceof BytesType) {
@@ -358,11 +375,11 @@ export function mem_decodeValue(
     }
 
     if (typ instanceof TupleType) {
-        return mem_decodeTuple(typ, loc, memory);
+        return mem_decodeTuple(typ, loc, memory, infer);
     }
 
     if (typ instanceof PointerType) {
-        return mem_decodePointer(typ, loc, memory);
+        return mem_decodePointer(typ, loc, memory, infer);
     }
 
     throw new Error(`NYI decoding ${typ.pp()}`);

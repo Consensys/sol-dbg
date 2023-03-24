@@ -22,6 +22,46 @@ contract Misc {
         }
     }
 
+
+    function allMoreThan2(uint16[3][] calldata arr) external {
+        allMoreThan2_memory(arr);
+    }
+
+    uint16[3][] fixed_arr_2d_2;
+    function allMoreThan2_memory(uint16[3][] memory arr) internal {
+        fixed_arr_2d_2 = arr;
+        allMoreThan2_storage(fixed_arr_2d_2);
+    }
+
+    function allMoreThan2_storage(uint16[3][] storage arr) internal {
+        for (uint i = 0; i < arr.length; i++) {
+            for (uint j = 0; j < arr[i].length; j++) {
+                assert(arr[i][j] > 1);
+            }
+
+        }
+    }
+
+
+    function allMoreThan3(uint16[][4] calldata arr) external {
+        allMoreThan3_memory(arr);
+    }
+
+    uint16[][4] fixed_arr_2d_3;
+    function allMoreThan3_memory(uint16[][4] memory arr) internal {
+        fixed_arr_2d_3 = arr;
+        allMoreThan3_storage(fixed_arr_2d_3);
+    }
+
+    function allMoreThan3_storage(uint16[][4] storage arr) internal {
+        for (uint i = 0; i < arr.length; i++) {
+            for (uint j = 0; j < arr[i].length; j++) {
+                assert(arr[i][j] > 1);
+            }
+
+        }
+    }
+
     struct BigStaticStruct {
         bool flag; // 1 byte
         int16 i16; // 3 bytes

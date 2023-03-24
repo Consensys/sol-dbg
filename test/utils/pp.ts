@@ -10,15 +10,14 @@ import {
     FixedBytesType,
     FunctionDefinition,
     FunctionKind,
+    InferType,
     IntType,
     PointerType,
     StringType,
     StructDefinition,
-    typeNameToTypeNode,
     TypeNode,
     UserDefinedType,
-    UserDefinedValueTypeDefinition,
-    variableDeclarationToTypeNode
+    UserDefinedValueTypeDefinition
 } from "solc-typed-ast";
 import {
     DbgStack,
@@ -33,7 +32,7 @@ import {
 
 const srcLocation = require("src-location");
 
-function ppValue(typ: TypeNode, v: any): string {
+function ppValue(typ: TypeNode, v: any, infer: InferType): string {
     if (v === undefined) {
         return `<failed decoding>`;
     }
@@ -73,9 +72,9 @@ function ppValue(typ: TypeNode, v: any): string {
         }
 
         if (def instanceof UserDefinedValueTypeDefinition) {
-            const underlyingType = typeNameToTypeNode(def.underlyingType);
+            const underlyingType = infer.typeNameToTypeNode(def.underlyingType);
 
-            return ppValue(underlyingType, v);
+            return ppValue(underlyingType, v, infer);
         }
 
         throw new Error(`NYI ppValue of user-defined type ${typ.pp()}`);
@@ -85,7 +84,7 @@ function ppValue(typ: TypeNode, v: any): string {
         if (typ.to instanceof ArrayType) {
             const elT = typ.to.elementT;
 
-            return `[${(v as any[]).map((el) => ppValue(elT, el)).join(", ")}]`;
+            return `[${(v as any[]).map((el) => ppValue(elT, el, infer)).join(", ")}]`;
         }
 
         if (typ.to instanceof BytesType) {
@@ -102,9 +101,9 @@ function ppValue(typ: TypeNode, v: any): string {
 
             for (const field of fields) {
                 try {
-                    const fieldT = variableDeclarationToTypeNode(field);
+                    const fieldT = infer.variableDeclarationToTypeNode(field);
 
-                    strFields.push(field.name + ": " + ppValue(fieldT, v[field.name]));
+                    strFields.push(field.name + ": " + ppValue(fieldT, v[field.name], infer));
                 } catch (e) {
                     strFields.push(field.name + ": <failed decoding>");
                 }
@@ -204,10 +203,17 @@ export function ppStackTrace(
                 }
 
                 const state = trace[frame.startStep];
-                const val = decodeValue(view, state);
+                assert(info !== undefined, ``);
+                const infer = solDbg.artifactManager.infer(info.artifact.compilerVersion);
+
+                const val = decodeValue(view, state, infer);
 
                 funArgEls.push(
-                    ppValue(view.originalType !== undefined ? view.originalType : view.type, val)
+                    ppValue(
+                        view.originalType !== undefined ? view.originalType : view.type,
+                        val,
+                        infer
+                    )
                 );
             }
 
