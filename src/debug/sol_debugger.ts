@@ -270,9 +270,11 @@ async function getStorage(manager: StateManager, addr: Address): Promise<Storage
 export class SolTxDebugger {
     /// ArtifactManager containing all the solc standard json.
     public readonly artifactManager: IArtifactManager;
+    private readonly strict: boolean;
 
-    constructor(artifactManager: IArtifactManager) {
+    constructor(artifactManager: IArtifactManager, strict = true) {
         this.artifactManager = artifactManager;
+        this.strict = strict;
     }
 
     /**
@@ -418,13 +420,20 @@ export class SolTxDebugger {
         if (state.op.mnemonic === "JUMP" && src.jump === "o") {
             const topFrame = stack[stack.length - 1];
 
-            assert(
-                topFrame.kind === FrameKind.InternalCall,
-                `Mismatched internal return from frame `,
-                topFrame.kind
-            );
+            if (this.strict) {
+                assert(
+                    topFrame.kind === FrameKind.InternalCall,
+                    `Mismatched internal return from frame `,
+                    topFrame.kind
+                );
 
-            stack.pop();
+                stack.pop();
+            } else {
+                if (topFrame.kind === FrameKind.InternalCall) {
+                    stack.pop();
+                }
+                // @todo log an error somewhere
+            }
         }
     }
 
