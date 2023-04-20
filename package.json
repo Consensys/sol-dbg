@@ -23,7 +23,7 @@
         "@ethereumjs/common": "^2.6.5",
         "@ethereumjs/tx": "^3.5.2",
         "@ethereumjs/vm": "^5.9.3",
-        "@remix-project/remix-simulator": "^0.2.14",
+        "@remix-project/remix-simulator": "0.2.14",
         "cbor": "^8.1.0",
         "ethereumjs-util": "^7.1.5",
         "solc-typed-ast": "^13.0.2",
