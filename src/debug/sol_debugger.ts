@@ -660,6 +660,11 @@ export class SolTxDebugger {
         const infer = this.artifactManager.infer(info.artifact.compilerVersion);
 
         for (const base of contract.vLinearizedBaseContracts) {
+            // Need to be defensive here, as in some cases with partial AST information the base may be missing
+            if (base === undefined) {
+                continue;
+            }
+
             const matchingFuns = base.vFunctions.filter(
                 (fun) => getFunctionSelector(fun, infer) === selector
             );
