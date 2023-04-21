@@ -204,10 +204,9 @@ export function checkAddrOoB(offset: bigint | number, buf: Buffer): number | und
 
     if (typeof offset === "bigint") {
         // Check that the bigint address fits in a normal number
-        assert(
-            BigInt(Number(offset)) === offset,
-            `Internal Error: address ${offset} doesn't fit in number`
-        );
+        if (BigInt(Number(offset)) !== offset) {
+            return undefined;
+        }
 
         numOff = Number(offset);
     } else {
