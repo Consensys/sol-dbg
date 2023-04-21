@@ -646,6 +646,48 @@ export class SolTxDebugger {
     }
 
     /**
+     * Given a contract info and a function selector find the (potentially inherited) entry point (function or public var getter).
+     * @param info 
+     * @param selector 
+     * @returns 
+     */
+    private findEntryPoint(info: ContractInfo, selector: UnprefixedHexString): FunctionDefinition | VariableDeclaration | undefined {
+        if (info.ast === undefined) {
+            return undefined
+        }
+
+        const contract = info.ast;
+        const infer = this.artifactManager.infer(info.artifact.compilerVersion);
+
+        for (const base of contract.vLinearizedBaseContracts) {
+            const matchingFuns = base.vFunctions.filter(
+                (fun) => getFunctionSelector(fun, infer) === selector
+            );
+
+            if (matchingFuns.length === 1) {
+                return matchingFuns[0];
+            }
+
+            const matchingGetters = base.vStateVariables.filter((vDef) => {
+                try {
+                    return (
+                        vDef.visibility === StateVariableVisibility.Public &&
+                        infer.signatureHash(vDef)
+                    );
+                } catch (e) {
+                    return false;
+                }
+            });
+
+            if (matchingGetters.length === 1) {
+                return matchingGetters[0];
+            }
+        }
+
+        return undefined;
+    }
+
+    /**
      * Build a `CallFrame` from the given `sender` address, `receiver` address, `data` `Buffer`, (msg.data) and the current trace step number.
      */
     private async makeCallFrame(
@@ -667,31 +709,10 @@ export class SolTxDebugger {
         let args: Array<[string, DataView | undefined]> | undefined;
 
         if (contractInfo && contractInfo.ast) {
-            const contract = contractInfo.ast;
             const abiVersion = contractInfo.artifact.abiEncoderVersion;
             const infer = this.artifactManager.infer(contractInfo.artifact.compilerVersion);
-            const matchingFuns = contract.vFunctions.filter(
-                (fun) => getFunctionSelector(fun, infer) === selector
-            );
 
-            if (matchingFuns.length === 1) {
-                callee = matchingFuns[0];
-            } else {
-                const matchingGetters = contract.vStateVariables.filter((vDef) => {
-                    try {
-                        return (
-                            vDef.visibility === StateVariableVisibility.Public &&
-                            infer.signatureHash(vDef)
-                        );
-                    } catch (e) {
-                        return false;
-                    }
-                });
-
-                if (matchingGetters.length === 1) {
-                    callee = matchingGetters[0];
-                }
-            }
+            callee = this.findEntryPoint(contractInfo, selector);
 
             if (callee !== undefined) {
                 try {
