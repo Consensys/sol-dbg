@@ -144,7 +144,7 @@ describe(`Local tests`, async () => {
                     let testJSON: TestCase;
 
                     before(async () => {
-                        solDbg = new SolTxDebugger(artifactManager);
+                        solDbg = new SolTxDebugger(artifactManager, { foundryCheatcodes: true });
                         runner = new VMTestRunner();
                         testJSON = fse.readJsonSync(txFile) as TestCase;
 

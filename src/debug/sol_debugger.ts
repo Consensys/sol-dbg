@@ -1,6 +1,6 @@
 import { Block } from "@ethereumjs/block";
 import { Transaction } from "@ethereumjs/tx";
-import VM from "@ethereumjs/vm";
+import VM, { VMOpts } from "@ethereumjs/vm";
 import { InterpreterStep } from "@ethereumjs/vm/dist/evm/interpreter";
 import { RunTxResult } from "@ethereumjs/vm/dist/runTx";
 import { StateManager } from "@ethereumjs/vm/dist/state";
@@ -39,6 +39,7 @@ import {
     increasesDepth,
     OPCODES
 } from "./opcodes";
+import { FoundryCheatcodePrecompile, FoundryCheatcodesAddress } from "./foundry_cheatcodes";
 
 export enum FrameKind {
     Call = "call",
@@ -247,6 +248,11 @@ async function getStorage(manager: StateManager, addr: Address): Promise<Storage
     return ImmMap.fromEntries(storageEntries);
 }
 
+export interface SolTxDebuggerOpts {
+    strict?: boolean;
+    foundryCheatcodes?: boolean;
+}
+
 /**
  * `SolTxDebugger` is the main debugger class. It contains a VM and a
  * corresponding Web3 provider that can be used to run transactions on that VM.
@@ -271,10 +277,21 @@ export class SolTxDebugger {
     /// ArtifactManager containing all the solc standard json.
     public readonly artifactManager: IArtifactManager;
     private readonly strict: boolean;
+    private readonly foundryCheatcodes: boolean;
 
-    constructor(artifactManager: IArtifactManager, strict = true) {
+    constructor(artifactManager: IArtifactManager, opts?: SolTxDebuggerOpts) {
         this.artifactManager = artifactManager;
-        this.strict = strict;
+
+        this.strict = true;
+        this.foundryCheatcodes = false;
+
+        if (opts) {
+            this.strict = opts.strict !== undefined ? opts.strict : this.strict;
+            this.foundryCheatcodes =
+                opts.foundryCheatcodes !== undefined
+                    ? opts.foundryCheatcodes
+                    : this.foundryCheatcodes;
+        }
     }
 
     /**
@@ -572,7 +589,18 @@ export class SolTxDebugger {
         block: Block | undefined,
         stateManager: StateManager | undefined
     ): Promise<[StepState[], RunTxResult]> {
-        const vm = new VM({ stateManager });
+        const opts: VMOpts = { stateManager };
+
+        if (this.foundryCheatcodes) {
+            opts.customPrecompiles = [
+                {
+                    address: Address.fromString(FoundryCheatcodesAddress),
+                    function: FoundryCheatcodePrecompile
+                }
+            ];
+        }
+
+        const vm = new VM(opts);
         const sender = tx.getSenderAddress().toString();
         const receiver = tx.to === undefined ? ZERO_ADDRESS_STRING : tx.to.toString();
         const isCreation = receiver === ZERO_ADDRESS_STRING;
@@ -647,13 +675,16 @@ export class SolTxDebugger {
 
     /**
      * Given a contract info and a function selector find the (potentially inherited) entry point (function or public var getter).
-     * @param info 
-     * @param selector 
-     * @returns 
+     * @param info
+     * @param selector
+     * @returns
      */
-    private findEntryPoint(info: ContractInfo, selector: UnprefixedHexString): FunctionDefinition | VariableDeclaration | undefined {
+    private findEntryPoint(
+        info: ContractInfo,
+        selector: UnprefixedHexString
+    ): FunctionDefinition | VariableDeclaration | undefined {
         if (info.ast === undefined) {
-            return undefined
+            return undefined;
         }
 
         const contract = info.ast;
