@@ -90,19 +90,7 @@ export function findFirstCallToFail(trace: StepState[]): StepState | undefined {
         return undefined;
     }
 
-    const stack = trace[i].stack;
-
-    for (let i = stack.length - 1; i >= 0; i--) {
-        if (stack[i].callee instanceof FunctionDefinition) {
-            if (i === stack.length - 1) {
-                return trace[i];
-            }
-
-            return trace[stack[i + 1].startStep - 1];
-        }
-    }
-
-    return undefined;
+    return trace[i];
 }
 
 function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {

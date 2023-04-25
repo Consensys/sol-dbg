@@ -38,7 +38,6 @@ export function FoundryCheatcodePrecompile(input: PrecompileInput): ExecResult {
 
         ctx.timeWarp = newTime;
 
-        console.error(`Called Foundry warp(${newTime})`);
         return {
             gasUsed: new BN(0),
             returnValue: Buffer.from("", "hex")
@@ -47,7 +46,6 @@ export function FoundryCheatcodePrecompile(input: PrecompileInput): ExecResult {
 
     if (selector === FAIL_SELECTOR) {
         const res = VmErrorResult(new VmError(ERROR.REVERT), new BN(0));
-        console.error(`Called Foundry fail()`);
         ctx.failCalled = true;
         return res;
     }

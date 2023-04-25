@@ -9,7 +9,11 @@ contract CheatcodeTest is Test {
     }
 
     function testWarp() public {
-        vm.warp(0x42);
-        assertEq(block.timestamp, 0x42);
+        dummy(0x42, 0x43);
+    }
+
+    function dummy(uint x, uint y) internal {
+        vm.warp(x);
+        assertEq(block.timestamp, y);
     }
 }

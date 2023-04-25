@@ -83,8 +83,11 @@
         "kind": "foundry_fail"
       },
       "errorPathPrefix": "test/samples/local/foundry_cheatcodes/contracts/",
-      "errorString": "foo",
-      "errorStack": []
+      "errorStack": [
+        "lib/forge-std/lib/ds-test/src/test.sol:67:30 DSTest.assertEq(66, 67)",
+        "test/Cheatcodes.t.sol:17:8 CheatcodeTest.dummy(66, 67)",
+        "test/Cheatcodes.t.sol:12:8 CheatcodeTest.testWarp()"
+      ]
     }
   ]
 }
