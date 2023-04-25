@@ -410,13 +410,33 @@ export class SolTxDebugger {
             return;
         }
 
-        // Jumping into an internal function call
+        // There are 2 ways to enter an internal function:
+        let enteringInternalFun = false;
+
+        //  1. Jumping into an internal function (the previous instruction is a JUMP with source map jump index i)
         if (
             state.op.mnemonic === "JUMPDEST" &&
             lastStep.op.mnemonic === "JUMP" &&
             lastStep.src &&
             lastStep.src.jump === "i"
         ) {
+            enteringInternalFun = true;
+        }
+
+        //  2. Fall-through (the previous instruction is literally the pervious instruction in the contract body,
+        //      AND the current JUMPDEST corresponds to a whole function, AND the pervious instructions' callee is different
+        //      from the current instruction's function.
+        if (
+            !enteringInternalFun &&
+            state.op.mnemonic === "JUMPDEST" &&
+            (ast instanceof FunctionDefinition ||
+                (ast instanceof VariableDeclaration && ast.stateVariable)) &&
+            lastStep.stack[lastStep.stack.length - 1].callee !== ast
+        ) {
+            enteringInternalFun = true;
+        }
+
+        if (enteringInternalFun) {
             let args: Array<[string, DataView | undefined]> | undefined;
 
             if (
@@ -616,9 +636,28 @@ export class SolTxDebugger {
             }
         };
 
+        const customBlockNum: CustomOpcode = {
+            opcode: 0x43,
+            opcodeName: "NUMBER",
+            baseFee: (opcodes.opcodes.get(0x43) as Opcode).fee,
+            gasFunction: undefined,
+            logicFunction: (runState: RunState, common: Common): void => {
+                const number =
+                    foundryCtx.rollBockNum === undefined
+                        ? runState.eei.getBlockNumber()
+                        : new BN(foundryCtx.rollBockNum.toString());
+
+                runState.stack.push(number);
+            }
+        };
+
         const optsCopy: VMOpts = {
             ...opts,
-            customOpcodes: [...(opts.customOpcodes ? opts.customOpcodes : []), customTimestamp],
+            customOpcodes: [
+                ...(opts.customOpcodes ? opts.customOpcodes : []),
+                customTimestamp,
+                customBlockNum
+            ],
             customPrecompiles: [
                 ...(opts.customPrecompiles ? opts.customPrecompiles : []),
                 {

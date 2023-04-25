@@ -90,6 +90,8 @@ export function findFirstCallToFail(trace: StepState[]): StepState | undefined {
         return undefined;
     }
 
+    //console.error(`Error step: ${i}`);
+
     return trace[i];
 }
 
@@ -314,6 +316,7 @@ describe(`Local tests`, async () => {
 
                             const errorStep = getStepFailTraceStep(curStep, trace);
 
+                            //debugDumpTrace(trace, artifactManager, curStep.errorPathPrefix);
                             expect(errorStep).not.toBeUndefined();
                             assert(errorStep !== undefined, ``);
 

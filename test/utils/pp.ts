@@ -304,3 +304,33 @@ export function printStepSourceString(
 
     return (fileContents as string).substring(errorLoc.start, errorLoc.start + errorLoc.length);
 }
+
+export function debugDumpTrace(
+    trace: StepState[],
+    artifactManager: ArtifactManager,
+    prefix?: string
+): void {
+    const sources = new Map<string, string>();
+
+    for (let i = 0; i < trace.length; i++) {
+        const step = trace[i];
+
+        const jumpType =
+            (step.op.mnemonic === "JUMP" || step.op.mnemonic === "JUMPI") && step.src
+                ? step.src.jump
+                : "";
+        const srcString = printStepSourceString(
+            step,
+            lastExternalFrame(step.stack),
+            sources,
+            artifactManager,
+            prefix
+        );
+
+        console.error(
+            `${i} ${step.pc}: ${step.op.mnemonic} ${jumpType} ${
+                srcString !== undefined ? srcString : ""
+            }`
+        );
+    }
+}
