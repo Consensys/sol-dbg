@@ -1,10 +1,10 @@
 import { Block } from "@ethereumjs/block";
 import { Transaction } from "@ethereumjs/tx";
 import VM, { VMOpts } from "@ethereumjs/vm";
-import { InterpreterStep } from "@ethereumjs/vm/dist/evm/interpreter";
+import { InterpreterStep, RunState } from "@ethereumjs/vm/dist/evm/interpreter";
 import { RunTxResult } from "@ethereumjs/vm/dist/runTx";
 import { StateManager } from "@ethereumjs/vm/dist/state";
-import { Address, rlp } from "ethereumjs-util";
+import { Address, BN, rlp } from "ethereumjs-util";
 import {
     assert,
     ASTNode,
@@ -39,7 +39,15 @@ import {
     increasesDepth,
     OPCODES
 } from "./opcodes";
-import { FoundryCheatcodePrecompile, FoundryCheatcodesAddress } from "./foundry_cheatcodes";
+import {
+    FoundryCheatcodePrecompile,
+    FoundryCheatcodesAddress,
+    FoundryContext,
+    setFoundryCtx
+} from "./foundry_cheatcodes";
+import { Opcode, getOpcodesForHF } from "@ethereumjs/vm/dist/evm/opcodes";
+import { CustomOpcode } from "@ethereumjs/vm/dist/evm/types";
+import Common from "@ethereumjs/common";
 
 export enum FrameKind {
     Call = "call",
@@ -584,23 +592,54 @@ export class SolTxDebugger {
         };
     }
 
+    static getVM(opts: VMOpts, foundryCheatcodes: boolean): VM {
+        if (!foundryCheatcodes) {
+            return new VM(opts);
+        }
+
+        const dummyVM = new VM(opts);
+        const opcodes = getOpcodesForHF(dummyVM._common);
+        const foundryCtx: FoundryContext = new FoundryContext();
+
+        const customTimestamp: CustomOpcode = {
+            opcode: 0x42,
+            opcodeName: "TIMESTAMP",
+            baseFee: (opcodes.opcodes.get(0x42) as Opcode).fee,
+            gasFunction: undefined,
+            logicFunction: (runState: RunState, common: Common): void => {
+                const time =
+                    foundryCtx.timeWarp === undefined
+                        ? runState.eei.getBlockTimestamp()
+                        : new BN(foundryCtx.timeWarp.toString());
+
+                runState.stack.push(time);
+            }
+        };
+
+        const optsCopy: VMOpts = {
+            ...opts,
+            customOpcodes: [...(opts.customOpcodes ? opts.customOpcodes : []), customTimestamp],
+            customPrecompiles: [
+                ...(opts.customPrecompiles ? opts.customPrecompiles : []),
+                {
+                    address: FoundryCheatcodesAddress,
+                    function: FoundryCheatcodePrecompile
+                }
+            ]
+        };
+
+        const res = new VM(optsCopy);
+
+        setFoundryCtx(res, foundryCtx);
+        return res;
+    }
+
     async debugTx(
         tx: Transaction,
         block: Block | undefined,
         stateManager: StateManager | undefined
     ): Promise<[StepState[], RunTxResult]> {
-        const opts: VMOpts = { stateManager };
-
-        if (this.foundryCheatcodes) {
-            opts.customPrecompiles = [
-                {
-                    address: Address.fromString(FoundryCheatcodesAddress),
-                    function: FoundryCheatcodePrecompile
-                }
-            ];
-        }
-
-        const vm = new VM(opts);
+        const vm = SolTxDebugger.getVM({ stateManager }, this.foundryCheatcodes);
         const sender = tx.getSenderAddress().toString();
         const receiver = tx.to === undefined ? ZERO_ADDRESS_STRING : tx.to.toString();
         const isCreation = receiver === ZERO_ADDRESS_STRING;

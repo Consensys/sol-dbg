@@ -10,6 +10,7 @@ import { Account, Address, BN } from "ethereumjs-util";
 import { assert } from "solc-typed-ast";
 import { HexString } from "../../src/artifacts";
 import { hexStrToBuf32, makeFakeTransaction, ZERO_ADDRESS_STRING } from "../../src/utils/misc";
+import { SolTxDebugger } from "../../src";
 
 interface BaseTestStep {
     address: HexString;
@@ -48,7 +49,8 @@ interface BaseTestCase {
 export enum ResultKind {
     ContractCreated = "contract_created",
     ValueReturned = "value_returned",
-    Revert = "revert"
+    Revert = "revert",
+    FoundryFail = "foundry_fail"
 }
 
 interface ResultContractCreated {
@@ -65,13 +67,19 @@ interface ResultRevert {
     kind: ResultKind.Revert;
 }
 
+interface ResultFoundryFail {
+    kind: ResultKind.FoundryFail;
+}
+
 export interface TestStep extends BaseTestStep {
     // Expected result of the transaction
-    result: ResultContractCreated | ResultValueReturned | ResultRevert;
+    result: ResultContractCreated | ResultValueReturned | ResultRevert | ResultFoundryFail;
     // Stack trace at the first error in the tx
     errorStack?: string[];
     // String in the original file in which the error location maps to
     errorString?: string;
+    // Optional prefix to append to file path to find the files
+    errorPathPrefix?: string;
 }
 
 export interface TestCase extends BaseTestCase {
@@ -93,12 +101,15 @@ export class AdjustedVMContext extends VMContext {
     } {
         const data = super.createVm(this.currentFork);
 
-        const vm = new VM({
-            stateManager: data.vm.stateManager,
+        const vm = SolTxDebugger.getVM(
+            {
+                stateManager: data.vm.stateManager,
 
-            activatePrecompiles: true,
-            allowUnlimitedContractSize: true
-        });
+                activatePrecompiles: true,
+                allowUnlimitedContractSize: true
+            },
+            true
+        );
 
         data.vm = vm;
         data.common = vm._common;
@@ -118,6 +129,10 @@ export class VMTestRunner {
     private _txToBlock: Map<string, Block>;
     private _results: RunTxResult[];
     private _stateRootBeforeTx = new Map<string, StateManager>();
+
+    get vm(): VM {
+        return this._provider.vm;
+    }
 
     constructor(provider?: VmProxy) {
         if (provider === undefined) {
