@@ -1,8 +1,7 @@
 import VM from "@ethereumjs/vm";
-import { ExecResult, VmErrorResult } from "@ethereumjs/vm/dist/evm/evm";
+import { ExecResult } from "@ethereumjs/vm/dist/evm/evm";
 import { PrecompileInput } from "@ethereumjs/vm/dist/evm/precompiles";
-import { ERROR, VmError } from "@ethereumjs/vm/dist/exceptions";
-import { Address, BN, keccak256 } from "ethereumjs-util";
+import { Address, BN, keccak256, setLengthLeft, setLengthRight } from "ethereumjs-util";
 const ethABI = require("web3-eth-abi");
 
 export const FoundryCheatcodesAddress = Address.fromString(
@@ -15,7 +14,19 @@ export const WARP_SELECTOR = keccak256(Buffer.from("warp(uint256)", "utf-8"))
 export const ROLL_SELECTOR = keccak256(Buffer.from("roll(uint256)", "utf-8"))
     .slice(0, 4)
     .toString("hex");
-export const FAIL_SELECTOR = "70ca10bb";
+export const LOAD_SELECTOR = keccak256(Buffer.from("load(address,bytes32)", "utf-8"))
+    .slice(0, 4)
+    .toString("hex");
+export const STORE_SELECTOR = keccak256(Buffer.from("store(address,bytes32,bytes32)", "utf-8"))
+    .slice(0, 4)
+    .toString("hex");
+export const FAIL_LOC = setLengthRight(Buffer.from("failed", "utf-8"), 32).toString("hex");
+export const FAIL_MSG_DATA = Buffer.concat([
+    keccak256(Buffer.from("store(address,bytes32,bytes32)", "utf-8")).slice(0, 4),
+    setLengthLeft(FoundryCheatcodesAddress.toBuffer(), 32),
+    setLengthRight(Buffer.from("failed", "utf-8"), 32),
+    setLengthLeft(Buffer.from([1]), 32)
+]).toString("hex");
 
 export class FoundryContext {
     public timeWarp: bigint | undefined = undefined;
@@ -31,7 +42,7 @@ export function setFoundryCtx(vm: VM, ctx: FoundryContext): void {
     (vm as any)._foundryCtx = ctx;
 }
 
-export function FoundryCheatcodePrecompile(input: PrecompileInput): ExecResult {
+export async function FoundryCheatcodePrecompile(input: PrecompileInput): Promise<ExecResult> {
     const selector = input.data.slice(0, 4).toString("hex");
     const ctx: FoundryContext = getFoundryCtx(input._VM);
 
@@ -61,10 +72,51 @@ export function FoundryCheatcodePrecompile(input: PrecompileInput): ExecResult {
         };
     }
 
-    if (selector === FAIL_SELECTOR) {
-        const res = VmErrorResult(new VmError(ERROR.REVERT), new BN(0));
-        ctx.failCalled = true;
-        return res;
+    if (selector === LOAD_SELECTOR) {
+        //console.error(`load(${rawAddr}, ${rawLoc})`);
+        let value = await input._VM.stateManager.getContractStorage(
+            new Address(input.data.slice(16, 36)),
+            input.data.slice(36, 68)
+        );
+
+        value = setLengthLeft(value, 32);
+
+        //console.error(`Result: ${value.toString("hex")}`);
+
+        return {
+            gasUsed: new BN(0),
+            returnValue: value
+        };
+    }
+
+    if (selector === STORE_SELECTOR) {
+        const addr = new Address(input.data.slice(16, 36));
+        const loc = input.data.slice(36, 68);
+        const value = input.data.slice(68, 100);
+
+        /*
+        console.error(
+            `store(${addr.toString()}, ${loc.toString("hex")}, ${value.toString("hex")})`
+        );
+        */
+
+        if (addr.equals(FoundryCheatcodesAddress)) {
+            const strLoc = loc.toString("hex");
+            if (strLoc === FAIL_LOC) {
+                ctx.failCalled = BigInt(value.toString("hex")) !== BigInt(0);
+            } else {
+                throw new Error(
+                    `NYI store to loc ${strLoc} of foundry precompile contract ${addr.toString()}`
+                );
+            }
+        } else {
+            await input._VM.stateManager.putContractStorage(addr, loc, value);
+        }
+
+        return {
+            gasUsed: new BN(0),
+            returnValue: Buffer.from("", "hex")
+        };
     }
 
     throw new Error(`NYI precompile with selector ${selector}`);

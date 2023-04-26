@@ -19,7 +19,7 @@ import {
 import { ppStackTrace, ResultKind, TestCase, TestStep, VMTestRunner } from "../utils";
 import VM from "@ethereumjs/vm";
 import {
-    FAIL_SELECTOR,
+    FAIL_MSG_DATA,
     FoundryCheatcodesAddress,
     getFoundryCtx
 } from "../../src/debug/foundry_cheatcodes";
@@ -78,9 +78,9 @@ export function findFirstCallToFail(trace: StepState[]): StepState | undefined {
                 continue;
             }
 
-            const selector = trace[i].memory.slice(argOffset, argOffset + 4).toString("hex");
+            const msgData = trace[i].memory.slice(argOffset, argOffset + argSize).toString("hex");
 
-            if (selector === FAIL_SELECTOR) {
+            if (msgData === FAIL_MSG_DATA) {
                 break;
             }
         }
