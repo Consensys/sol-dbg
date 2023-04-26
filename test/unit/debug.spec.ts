@@ -4,6 +4,7 @@ import fse from "fs-extra";
 import { assert, FunctionDefinition } from "solc-typed-ast";
 import {
     ArtifactManager,
+    bigEndianBufToNumber,
     ContractInfo,
     DecodedBytecodeSourceMapEntry,
     getContractInfo,
@@ -12,9 +13,16 @@ import {
     PartialSolcOutput,
     SolTxDebugger,
     SourceFileInfo,
-    StepState
+    StepState,
+    wordToAddress
 } from "../../src";
 import { ppStackTrace, ResultKind, TestCase, TestStep, VMTestRunner } from "../utils";
+import VM from "@ethereumjs/vm";
+import {
+    FAIL_SELECTOR,
+    FoundryCheatcodesAddress,
+    getFoundryCtx
+} from "../../src/debug/foundry_cheatcodes";
 
 /**
  * Find the last step in the non-internal code, that leads to the first revert
@@ -47,7 +55,45 @@ export function findLastNonInternalStepBeforeRevert(trace: StepState[]): StepSta
     return undefined;
 }
 
-function checkResult(result: RunTxResult, step: TestStep): boolean {
+/**
+ * Find the last step before calling the foundry cheatcode fail()
+ */
+export function findFirstCallToFail(trace: StepState[]): StepState | undefined {
+    let i = 0;
+
+    for (; i < trace.length; i++) {
+        // Look for CALL to FoundryCheatcodesAddress with the FAIL_SELECTOR
+        if (trace[i].op.mnemonic === "CALL") {
+            const stackLen = trace[i].evmStack.length;
+            const addr = wordToAddress(trace[i].evmStack[stackLen - 2]);
+
+            if (!addr.equals(FoundryCheatcodesAddress)) {
+                continue;
+            }
+
+            const argOffset = bigEndianBufToNumber(trace[i].evmStack[stackLen - 4]);
+            const argSize = bigEndianBufToNumber(trace[i].evmStack[stackLen - 5]);
+
+            if (argSize < 4) {
+                continue;
+            }
+
+            const selector = trace[i].memory.slice(argOffset, argOffset + 4).toString("hex");
+
+            if (selector === FAIL_SELECTOR) {
+                break;
+            }
+        }
+    }
+
+    if (i === trace.length) {
+        return undefined;
+    }
+
+    return trace[i];
+}
+
+function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {
     switch (step.result.kind) {
         case ResultKind.ContractCreated: {
             const createdAddress = result.createdAddress
@@ -87,6 +133,17 @@ function checkResult(result: RunTxResult, step: TestStep): boolean {
 
             return failed;
         }
+
+        case ResultKind.FoundryFail: {
+            const foundryCtx = getFoundryCtx(vm);
+
+            const failed = foundryCtx.failCalled;
+            if (!failed) {
+                console.error(`Expected a foundry fail call, but the tx step succeeded`);
+            }
+
+            return failed;
+        }
     }
 }
 
@@ -121,6 +178,14 @@ export function stackTracesEq(actualST: string, expectedST: string[]): boolean {
     return true;
 }
 
+function getStepFailTraceStep(step: TestStep, trace: StepState[]): StepState | undefined {
+    if (step.result.kind === "revert") {
+        return findLastNonInternalStepBeforeRevert(trace);
+    } else {
+        return findFirstCallToFail(trace);
+    }
+}
+
 describe(`Local tests`, async () => {
     for (const sample of fse.readdirSync("test/samples/local")) {
         describe(`Sample ${sample}`, () => {
@@ -144,7 +209,10 @@ describe(`Local tests`, async () => {
                     let testJSON: TestCase;
 
                     before(async () => {
-                        solDbg = new SolTxDebugger(artifactManager);
+                        solDbg = new SolTxDebugger(artifactManager, {
+                            foundryCheatcodes: true,
+                            strict: false
+                        });
                         runner = new VMTestRunner();
                         testJSON = fse.readJsonSync(txFile) as TestCase;
 
@@ -155,7 +223,7 @@ describe(`Local tests`, async () => {
                         for (let i = 0; i < runner.txs.length; i++) {
                             const curStep = testJSON.steps[i];
 
-                            expect(checkResult(runner.results[i], curStep)).toBeTruthy();
+                            expect(checkResult(runner.results[i], curStep, runner.vm)).toBeTruthy();
                         }
                     });
 
@@ -163,9 +231,12 @@ describe(`Local tests`, async () => {
                         for (let i = 0; i < runner.txs.length; i++) {
                             const curStep = testJSON.steps[i];
 
-                            const expectRevert = curStep.result.kind === "revert";
-
-                            if (!expectRevert) {
+                            if (
+                                !(
+                                    curStep.result.kind === "revert" ||
+                                    curStep.result.kind === "foundry_fail"
+                                )
+                            ) {
                                 continue;
                             }
 
@@ -174,7 +245,7 @@ describe(`Local tests`, async () => {
                             const stateBefore = runner.getStateBeforeTx(tx);
                             const [trace] = await solDbg.debugTx(tx, block, stateBefore);
 
-                            const errorStep = findLastNonInternalStepBeforeRevert(trace);
+                            const errorStep = getStepFailTraceStep(curStep, trace);
 
                             expect(errorStep).not.toBeUndefined();
                             assert(errorStep !== undefined, "Should be catched by prev statement");
@@ -209,7 +280,10 @@ describe(`Local tests`, async () => {
                             let fileContents = sources.get(fileName as string);
 
                             if (fileContents === undefined) {
-                                fileContents = fse.readFileSync(fileName, {
+                                const actualFileName = curStep.errorPathPrefix
+                                    ? curStep.errorPathPrefix + fileName
+                                    : fileName;
+                                fileContents = fse.readFileSync(actualFileName, {
                                     encoding: "utf-8"
                                 });
 
@@ -238,7 +312,7 @@ describe(`Local tests`, async () => {
                             const stateBefore = runner.getStateBeforeTx(tx);
                             const [trace] = await solDbg.debugTx(tx, block, stateBefore);
 
-                            const errorStep = findLastNonInternalStepBeforeRevert(trace);
+                            const errorStep = getStepFailTraceStep(curStep, trace);
 
                             expect(errorStep).not.toBeUndefined();
                             assert(errorStep !== undefined, ``);

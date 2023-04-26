@@ -20,8 +20,11 @@ import {
     UserDefinedValueTypeDefinition
 } from "solc-typed-ast";
 import {
+    ArtifactManager,
+    ContractInfo,
     DbgStack,
     decodeValue,
+    ExternalFrame,
     FrameKind,
     getContractInfo,
     lastExternalFrame,
@@ -31,6 +34,7 @@ import {
 } from "../../src/debug";
 
 const srcLocation = require("src-location");
+const fse = require("fs-extra");
 
 function ppValue(typ: TypeNode, v: any, infer: InferType): string {
     if (v === undefined) {
@@ -147,6 +151,37 @@ export function ppStackTrace(
             fileName = info.fileName;
         }
 
+        if (frame.callee) {
+            if (frame.callee instanceof FunctionDefinition) {
+                let calleeName: string;
+
+                if (frame.callee.isConstructor) {
+                    calleeName = "constructor";
+                } else if (frame.callee.kind === FunctionKind.Fallback) {
+                    calleeName = "fallback";
+                } else if (frame.callee.kind === FunctionKind.Receive) {
+                    calleeName = "receiver";
+                } else {
+                    calleeName = frame.callee.name;
+                }
+
+                fileName = (
+                    frame.callee.vScope instanceof ContractDefinition
+                        ? frame.callee.vScope.vScope
+                        : frame.callee.vScope
+                ).sourceEntryKey;
+
+                funName =
+                    (frame.callee.vScope instanceof ContractDefinition
+                        ? frame.callee.vScope.name + "."
+                        : "") + calleeName;
+            } else {
+                funName = `<compiler-generated function>@${offset}`;
+            }
+        } else {
+            funName = `<unknown function>@${offset}`;
+        }
+
         if (
             extFrame.info &&
             lastPosInFrame &&
@@ -165,31 +200,6 @@ export function ppStackTrace(
 
                 fileName += `:${t.line}:${t.column}`;
             }
-        }
-
-        if (frame.callee) {
-            if (frame.callee instanceof FunctionDefinition) {
-                let calleeName: string;
-
-                if (frame.callee.isConstructor) {
-                    calleeName = "constructor";
-                } else if (frame.callee.kind === FunctionKind.Fallback) {
-                    calleeName = "fallback";
-                } else if (frame.callee.kind === FunctionKind.Receive) {
-                    calleeName = "receiver";
-                } else {
-                    calleeName = frame.callee.name;
-                }
-
-                funName =
-                    (frame.callee.vScope instanceof ContractDefinition
-                        ? frame.callee.vScope.name + "."
-                        : "") + calleeName;
-            } else {
-                funName = `<compiler-generated function>@${offset}`;
-            }
-        } else {
-            funName = `<unknown function>@${offset}`;
         }
 
         if (frame.arguments) {
@@ -247,4 +257,50 @@ export function ppStackTrace(
     }
 
     return res.reverse().join("\n");
+}
+
+export function printStepSourceString(
+    step: StepState,
+    lastExtStep: ExternalFrame,
+    sources: Map<string, string>,
+    artifactManager: ArtifactManager,
+    prefix: string | undefined
+): string | undefined {
+    const info = step.contractInfo;
+
+    if (info === undefined) {
+        return undefined;
+    }
+
+    const errorLoc = step.src;
+
+    if (errorLoc === undefined) {
+        return undefined;
+    }
+
+    const fileInd = errorLoc.sourceIndex;
+    const fileInfo = artifactManager.getFileById(
+        fileInd,
+        info as ContractInfo,
+        lastExtStep.kind === "creation"
+    );
+
+    if (fileInfo === undefined) {
+        return undefined;
+    }
+
+    const fileName = fileInfo.name;
+
+    let fileContents = sources.get(fileName as string);
+
+    if (fileContents === undefined) {
+        const actualFileName = prefix ? prefix + fileName : fileName;
+        fileContents = fse.readFileSync(actualFileName, {
+            encoding: "utf-8"
+        }) as string;
+
+        sources.set(fileName, fileContents);
+    }
+
+    return (fileContents as string).substring(errorLoc.start, errorLoc.start + errorLoc.length);
 }
