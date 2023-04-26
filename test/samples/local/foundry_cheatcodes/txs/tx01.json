@@ -70,23 +70,23 @@
     {
       "address": "0x0901d12ebe1b195e5aa8748e62bd7734ae19b51f",
       "gasLimit": "0xff000",
-      "gasPrice": "0x3b9aca0bf",
-      "input": "0x472220ce00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
-      "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2",
+      "gasPrice": "0x546c3706d",
+      "input": "0xd48cf506000000000000b10000000000000000000000000000000000ed00",
+      "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
       "value": "0x0",
       "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
-      "blockDifficulty": "0x0",
+      "blockDifficulty": "0x10",
       "blockGasLimit": "0xff0000",
-      "blockNumber": "0x1",
-      "blockTime": "0x1",
+      "blockNumber": "0x42d35",
+      "blockTime": "0x2",
       "result": {
         "kind": "foundry_fail"
       },
       "errorPathPrefix": "test/samples/local/foundry_cheatcodes/contracts/",
       "errorStack": [
-        "lib/forge-std/lib/ds-test/src/test.sol:67:30 DSTest.assertEq(18, 19)",
-        "test/Cheatcodes.t.sol:26:8 CheatcodeTest.dummyTestRoll(18, 19)",
-        "test/Cheatcodes.t.sol:21:8 CheatcodeTest.testRoll()"
+        "lib/forge-std/lib/ds-test/src/test.sol:67:30 DSTest.assertEq(66, 67)",
+        "test/Cheatcodes.t.sol:17:34 CheatcodeTest.dummyTestWarp(66, 67)",
+        "test/Cheatcodes.t.sol:12:8 CheatcodeTest.testWarp()"
       ]
     }
   ]

@@ -12,10 +12,14 @@ export const FoundryCheatcodesAddress = Address.fromString(
 export const WARP_SELECTOR = keccak256(Buffer.from("warp(uint256)", "utf-8"))
     .slice(0, 4)
     .toString("hex");
+export const ROLL_SELECTOR = keccak256(Buffer.from("roll(uint256)", "utf-8"))
+    .slice(0, 4)
+    .toString("hex");
 export const FAIL_SELECTOR = "70ca10bb";
 
 export class FoundryContext {
     public timeWarp: bigint | undefined = undefined;
+    public rollBockNum: bigint | undefined = undefined;
     public failCalled = false;
 }
 
@@ -37,6 +41,19 @@ export function FoundryCheatcodePrecompile(input: PrecompileInput): ExecResult {
         );
 
         ctx.timeWarp = newTime;
+
+        return {
+            gasUsed: new BN(0),
+            returnValue: Buffer.from("", "hex")
+        };
+    }
+
+    if (selector === ROLL_SELECTOR) {
+        const newBlockNum = BigInt(
+            ethABI.decodeParameters(["uint256"], input.data.slice(4).toString("hex"))[0]
+        );
+
+        ctx.rollBockNum = newBlockNum;
 
         return {
             gasUsed: new BN(0),
