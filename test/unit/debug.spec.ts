@@ -316,7 +316,6 @@ describe(`Local tests`, async () => {
 
                             const errorStep = getStepFailTraceStep(curStep, trace);
 
-                            //debugDumpTrace(trace, artifactManager, curStep.errorPathPrefix);
                             expect(errorStep).not.toBeUndefined();
                             assert(errorStep !== undefined, ``);
 
