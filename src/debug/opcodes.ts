@@ -2864,18 +2864,19 @@ MnemonicToOpcodeMap.set("KECCAK256", 0x20);
 export function getOpInfo(arg: string | number): EVMOpInfo {
     if (typeof arg === "number") {
         assert(arg >= 0 && arg < 256, `Invalid EVM opcode ${arg}`);
+
         return OpcodeInfo[arg];
-    } else {
-        const opcode = MnemonicToOpcodeMap.get(arg);
-
-        assert(opcode !== undefined, `Unknown opcode mnemonic ${arg}`);
-        assert(
-            opcode >= 0 && opcode < 256,
-            `Internal error: invalid opcode ${opcode} for mnemonic ${arg}`
-        );
-
-        return OpcodeInfo[opcode];
     }
+
+    const opcode = MnemonicToOpcodeMap.get(arg);
+
+    assert(opcode !== undefined, `Unknown opcode mnemonic ${arg}`);
+    assert(
+        opcode >= 0 && opcode < 256,
+        `Internal error: invalid opcode ${opcode} for mnemonic ${arg}`
+    );
+
+    return OpcodeInfo[opcode];
 }
 
 /**

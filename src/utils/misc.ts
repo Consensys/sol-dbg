@@ -43,6 +43,7 @@ export function bigIntToBuf(
     const res = Buffer.alloc(size, 0);
 
     let i = endianness === "big" ? size - 1 : 0;
+
     const dir = endianness === "big" ? -1 : 1;
     const zero = BigInt(0);
 

@@ -193,6 +193,7 @@ function isTypeEncodingDynamic(typ: TypeNode): boolean {
     if (typ instanceof TupleType) {
         for (const elT of typ.elements) {
             assert(elT !== null, ``);
+
             if (isTypeEncodingDynamic(elT)) {
                 return true;
             }
@@ -278,4 +279,40 @@ export function toABIEncodedType(
     }
 
     return type;
+}
+
+export function isABITypeStaticSized(type: TypeNode): boolean {
+    if (type instanceof ArrayType) {
+        return type.size !== undefined && isABITypeStaticSized(type.elementT);
+    }
+
+    if (type instanceof PointerType) {
+        return isABITypeStaticSized(type.to);
+    }
+
+    if (type instanceof TupleType) {
+        for (const elT of type.elements) {
+            assert(elT !== null, ``);
+            if (!isABITypeStaticSized(elT)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    if (type instanceof StringType || type instanceof BytesType) {
+        return false;
+    }
+
+    if (
+        type instanceof IntType ||
+        type instanceof AddressType ||
+        type instanceof BoolType ||
+        type instanceof FixedBytesType
+    ) {
+        return true;
+    }
+
+    throw new Error(`NYI isABITypeStaticSized(${type.pp()})`);
 }
