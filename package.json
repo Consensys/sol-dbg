@@ -24,6 +24,7 @@
         "@ethereumjs/tx": "^3.5.2",
         "@ethereumjs/vm": "^5.9.3",
         "@remix-project/remix-simulator": "0.2.14",
+        "ethereum-cryptography": "2.0.0",
         "cbor": "^8.1.0",
         "ethereumjs-util": "^7.1.5",
         "solc-typed-ast": "^14.0.1",

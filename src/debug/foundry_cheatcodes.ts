@@ -2,6 +2,8 @@ import VM from "@ethereumjs/vm";
 import { ExecResult } from "@ethereumjs/vm/dist/evm/evm";
 import { PrecompileInput } from "@ethereumjs/vm/dist/evm/precompiles";
 import { Address, BN, keccak256, setLengthLeft, setLengthRight } from "ethereumjs-util";
+import { bigIntToBuf } from "../utils";
+const { secp256k1 } = require("ethereum-cryptography/secp256k1");
 const ethABI = require("web3-eth-abi");
 
 export const FoundryCheatcodesAddress = Address.fromString(
@@ -18,6 +20,9 @@ export const LOAD_SELECTOR = keccak256(Buffer.from("load(address,bytes32)", "utf
     .slice(0, 4)
     .toString("hex");
 export const STORE_SELECTOR = keccak256(Buffer.from("store(address,bytes32,bytes32)", "utf-8"))
+    .slice(0, 4)
+    .toString("hex");
+export const SIGN_SELECTOR = keccak256(Buffer.from("sign(uint256,bytes32)", "utf-8"))
     .slice(0, 4)
     .toString("hex");
 export const FAIL_LOC = setLengthRight(Buffer.from("failed", "utf-8"), 32).toString("hex");
@@ -116,6 +121,22 @@ export async function FoundryCheatcodePrecompile(input: PrecompileInput): Promis
         return {
             gasUsed: new BN(0),
             returnValue: Buffer.from("", "hex")
+        };
+    }
+
+    if (selector === SIGN_SELECTOR) {
+        const pk = input.data.slice(4, 36);
+        const digest = input.data.slice(36, 68);
+
+        const sig = secp256k1.sign(digest, pk);
+
+        const r = bigIntToBuf(sig.r, 32, "big");
+        const s = bigIntToBuf(sig.s, 32, "big");
+        const v = setLengthLeft(Buffer.from([sig.recovery + 27]), 32);
+
+        return {
+            gasUsed: new BN(0),
+            returnValue: Buffer.concat([v, r, s])
         };
     }
 
