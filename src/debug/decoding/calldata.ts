@@ -16,7 +16,13 @@ import {
     TypeNode,
     UserDefinedType
 } from "solc-typed-ast";
-import { CalldataLocation, changeToLocation, DataLocation, DataLocationKind } from "..";
+import {
+    CalldataLocation,
+    changeToLocation,
+    DataLocation,
+    DataLocationKind,
+    isABITypeStaticSized
+} from "..";
 import {
     bigEndianBufToBigint,
     checkAddrOoB,
@@ -368,42 +374,6 @@ function cd_decodePointer(
     }
 
     return [pointedToValue[0], size];
-}
-
-export function isABITypeStaticSized(type: TypeNode): boolean {
-    if (type instanceof ArrayType) {
-        return type.size !== undefined && isABITypeStaticSized(type.elementT);
-    }
-
-    if (type instanceof PointerType) {
-        return isABITypeStaticSized(type.to);
-    }
-
-    if (type instanceof TupleType) {
-        for (const elT of type.elements) {
-            assert(elT !== null, ``);
-            if (!isABITypeStaticSized(elT)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    if (type instanceof StringType || type instanceof BytesType) {
-        return false;
-    }
-
-    if (
-        type instanceof IntType ||
-        type instanceof AddressType ||
-        type instanceof BoolType ||
-        type instanceof FixedBytesType
-    ) {
-        return true;
-    }
-
-    throw new Error(`NYI isABITypeStaticSized(${type.pp()})`);
 }
 
 export function cd_decodeValue(
