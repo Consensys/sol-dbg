@@ -35,6 +35,9 @@ export const SIGN_SELECTOR = keccak256(Buffer.from("sign(uint256,bytes32)", "utf
 export const ADDR_SELECTOR = keccak256(Buffer.from("addr(uint256)", "utf-8"))
     .slice(0, 4)
     .toString("hex");
+export const DEAL_SELECTOR = keccak256(Buffer.from("deal(address,uint256)", "utf-8"))
+    .slice(0, 4)
+    .toString("hex");
 export const FAIL_LOC = setLengthRight(Buffer.from("failed", "utf-8"), 32).toString("hex");
 export const FAIL_MSG_DATA = Buffer.concat([
     keccak256(Buffer.from("store(address,bytes32,bytes32)", "utf-8")).slice(0, 4),
@@ -160,5 +163,18 @@ export async function FoundryCheatcodePrecompile(input: PrecompileInput): Promis
         };
     }
 
+    if (selector === DEAL_SELECTOR) {
+        const addr = new Address(input.data.slice(16, 36));
+        const newBalance = input.data.slice(36, 68).toString("hex");
+
+        const acct = await input._VM.stateManager.getAccount(addr);
+        acct.balance = new BN(newBalance, 16);
+        await input._VM.stateManager.putAccount(addr, acct);
+
+        return {
+            gasUsed: new BN(0),
+            returnValue: Buffer.from("", "hex")
+        };
+    }
     throw new Error(`NYI precompile with selector ${selector}`);
 }
