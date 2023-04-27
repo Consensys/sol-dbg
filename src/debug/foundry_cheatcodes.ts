@@ -1,7 +1,14 @@
 import VM from "@ethereumjs/vm";
 import { ExecResult } from "@ethereumjs/vm/dist/evm/evm";
 import { PrecompileInput } from "@ethereumjs/vm/dist/evm/precompiles";
-import { Address, BN, keccak256, setLengthLeft, setLengthRight } from "ethereumjs-util";
+import {
+    Address,
+    BN,
+    keccak256,
+    privateToAddress,
+    setLengthLeft,
+    setLengthRight
+} from "ethereumjs-util";
 import { bigIntToBuf } from "../utils";
 const { secp256k1 } = require("ethereum-cryptography/secp256k1");
 const ethABI = require("web3-eth-abi");
@@ -23,6 +30,9 @@ export const STORE_SELECTOR = keccak256(Buffer.from("store(address,bytes32,bytes
     .slice(0, 4)
     .toString("hex");
 export const SIGN_SELECTOR = keccak256(Buffer.from("sign(uint256,bytes32)", "utf-8"))
+    .slice(0, 4)
+    .toString("hex");
+export const ADDR_SELECTOR = keccak256(Buffer.from("addr(uint256)", "utf-8"))
     .slice(0, 4)
     .toString("hex");
 export const FAIL_LOC = setLengthRight(Buffer.from("failed", "utf-8"), 32).toString("hex");
@@ -137,6 +147,16 @@ export async function FoundryCheatcodePrecompile(input: PrecompileInput): Promis
         return {
             gasUsed: new BN(0),
             returnValue: Buffer.concat([v, r, s])
+        };
+    }
+
+    if (selector === ADDR_SELECTOR) {
+        const pk = input.data.slice(4, 36);
+        const addr = setLengthLeft(privateToAddress(pk), 32);
+
+        return {
+            gasUsed: new BN(0),
+            returnValue: addr
         };
     }
 
