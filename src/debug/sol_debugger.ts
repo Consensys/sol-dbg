@@ -1,10 +1,10 @@
 import { Block } from "@ethereumjs/block";
 import { Transaction } from "@ethereumjs/tx";
 import VM, { VMOpts } from "@ethereumjs/vm";
-import { InterpreterStep, RunState } from "@ethereumjs/vm/dist/evm/interpreter";
+import { InterpreterStep } from "@ethereumjs/vm/dist/evm/interpreter";
 import { RunTxResult } from "@ethereumjs/vm/dist/runTx";
 import { StateManager } from "@ethereumjs/vm/dist/state";
-import { Address, BN, rlp } from "ethereumjs-util";
+import { Address, rlp } from "ethereumjs-util";
 import {
     assert,
     ASTNode,
@@ -43,11 +43,12 @@ import {
     FoundryCheatcodePrecompile,
     FoundryCheatcodesAddress,
     FoundryContext,
+    interpRunListeners,
     setFoundryCtx
 } from "./foundry_cheatcodes";
-import { Opcode, getOpcodesForHF } from "@ethereumjs/vm/dist/evm/opcodes";
-import { CustomOpcode } from "@ethereumjs/vm/dist/evm/types";
-import Common from "@ethereumjs/common";
+import { getOpcodesForHF } from "@ethereumjs/vm/dist/evm/opcodes";
+import { foundryInterposedOps } from "./opcode_interposing";
+import { EventEmitter } from "stream";
 
 export enum FrameKind {
     Call = "call",
@@ -620,42 +621,11 @@ export class SolTxDebugger {
         const opcodes = getOpcodesForHF(dummyVM._common);
         const foundryCtx: FoundryContext = new FoundryContext();
 
-        const customTimestamp: CustomOpcode = {
-            opcode: 0x42,
-            opcodeName: "TIMESTAMP",
-            baseFee: (opcodes.opcodes.get(0x42) as Opcode).fee,
-            gasFunction: undefined,
-            logicFunction: (runState: RunState, common: Common): void => {
-                const time =
-                    foundryCtx.timeWarp === undefined
-                        ? runState.eei.getBlockTimestamp()
-                        : new BN(foundryCtx.timeWarp.toString());
-
-                runState.stack.push(time);
-            }
-        };
-
-        const customBlockNum: CustomOpcode = {
-            opcode: 0x43,
-            opcodeName: "NUMBER",
-            baseFee: (opcodes.opcodes.get(0x43) as Opcode).fee,
-            gasFunction: undefined,
-            logicFunction: (runState: RunState, common: Common): void => {
-                const number =
-                    foundryCtx.rollBockNum === undefined
-                        ? runState.eei.getBlockNumber()
-                        : new BN(foundryCtx.rollBockNum.toString());
-
-                runState.stack.push(number);
-            }
-        };
-
         const optsCopy: VMOpts = {
             ...opts,
             customOpcodes: [
                 ...(opts.customOpcodes ? opts.customOpcodes : []),
-                customTimestamp,
-                customBlockNum
+                ...foundryInterposedOps(opcodes, foundryCtx)
             ],
             customPrecompiles: [
                 ...(opts.customPrecompiles ? opts.customPrecompiles : []),
@@ -669,6 +639,11 @@ export class SolTxDebugger {
         const res = new VM(optsCopy);
 
         setFoundryCtx(res, foundryCtx);
+
+        const emitter = new EventEmitter();
+        emitter.on("beforeInterpRun", foundryCtx.beforeInterpRunCB.bind(foundryCtx));
+        emitter.on("afterInterpRun", foundryCtx.afterInterpRunCB.bind(foundryCtx));
+        interpRunListeners.set(res, emitter);
         return res;
     }
 
