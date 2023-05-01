@@ -123,7 +123,14 @@ function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {
                 );
             }
 
-            return res;
+            const foundryCtx = getFoundryCtx(vm);
+
+            const foundryFailed = foundryCtx.failCalled;
+            if (foundryFailed) {
+                console.error(`Expected a foundry fail call, but the tx step succeeded`);
+            }
+
+            return res && !foundryFailed;
         }
 
         case ResultKind.Revert: {
