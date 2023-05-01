@@ -135,9 +135,7 @@ export class FoundryContext {
             return undefined;
         }
 
-        const eei = this.eeiStack[this.eeiStack.length - 1];
-
-        return (eei as any).pendingPrank;
+        return (this.getEEI() as any).pendingPrank;
     }
 
     // Set the pending prank for the current call frame
@@ -146,9 +144,7 @@ export class FoundryContext {
             return undefined;
         }
 
-        const eei = this.eeiStack[this.eeiStack.length - 1];
-
-        (eei as any).pendingPrank = prank;
+        (this.getEEI() as any).pendingPrank = prank;
     }
 
     /**
