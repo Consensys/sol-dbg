@@ -469,5 +469,9 @@ export async function FoundryCheatcodePrecompile(input: PrecompileInput): Promis
             returnValue: Buffer.from("", "hex")
         };
     }
-    throw new Error(`NYI precompile with selector ${selector}`);
+
+    return {
+        gasUsed: new BN(0),
+        returnValue: Buffer.from("", "hex")
+    };
 }
