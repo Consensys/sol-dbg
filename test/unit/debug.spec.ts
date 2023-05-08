@@ -224,9 +224,7 @@ describe(`Local tests`, async () => {
                             strict: false
                         });
 
-                        runner = new VMTestRunner(
-                            await solDbg.createVm(new DefaultStateManager({}))
-                        );
+                        runner = new VMTestRunner(await solDbg.createVm(new DefaultStateManager()));
 
                         testJSON = fse.readJsonSync(txFile);
 
