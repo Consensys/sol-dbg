@@ -90,20 +90,28 @@ function getDeployedBytecodeMdInfo(
 ): ContractMdStruct {
     const len = deployedBytecode.length;
 
-    let rawMd: any;
+    let rawMd: any = {};
 
-    if (typeof deployedBytecode === "string") {
-        const off = parseInt(deployedBytecode.substring(len - 4), 16);
-        const mdHex = deployedBytecode.substring(len - 4 - off * 2, len - 4);
+    try {
+        if (typeof deployedBytecode === "string") {
+            const off = parseInt(deployedBytecode.substring(len - 4), 16);
+            const mdHex = deployedBytecode.substring(len - 4 - off * 2, len - 4);
 
-        rawMd = Decoder.decodeAllSync(mdHex, { encoding: "hex" })[0];
-    } else {
-        const off = deployedBytecode.readInt16BE(deployedBytecode.length - 2);
+            rawMd = Decoder.decodeAllSync(mdHex, { encoding: "hex" })[0];
+        } else {
+            const off = deployedBytecode.readInt16BE(deployedBytecode.length - 2);
 
-        rawMd = Decoder.decodeAllSync(
-            deployedBytecode.slice(deployedBytecode.length - 2 - off, deployedBytecode.length - 2),
-            {}
-        )[0];
+            rawMd = Decoder.decodeAllSync(
+                deployedBytecode.slice(
+                    deployedBytecode.length - 2 - off,
+                    deployedBytecode.length - 2
+                ),
+                {}
+            )[0];
+        }
+    } catch {
+        // The contract bytecode may not have metadata, which would result in random crashes in the decoder.
+        // Catch those so we don't end up crashing in the absence of metadata.
     }
 
     const res: ContractMdStruct = {};

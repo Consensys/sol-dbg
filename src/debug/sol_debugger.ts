@@ -897,12 +897,10 @@ export class SolTxDebugger {
 
             offsetFromTop += stackSize;
 
-            assert(
-                offsetFromTop <= stack.length,
-                `Stack underflow when trying to decode arguments of {0}`,
-                callee,
-                `Expected ${formals.length} entries but stack is only ${stack.length} deep`
-            );
+            if (offsetFromTop > stack.length) {
+                // Stack underflow. Could be due to optimized code?
+                return undefined;
+            }
 
             res.unshift([
                 name,

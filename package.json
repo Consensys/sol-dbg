@@ -27,7 +27,7 @@
         "ethereum-cryptography": "2.0.0",
         "cbor": "^8.1.0",
         "ethereumjs-util": "^7.1.5",
-        "solc-typed-ast": "^14.0.1",
+        "solc-typed-ast": "^14.0.2",
         "src-location": "^1.1.0",
         "web3-eth-abi": "^1.9.0"
     },
