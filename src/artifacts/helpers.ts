@@ -4,12 +4,16 @@ import { toHexString } from "..";
 import { HexString, PartialSolcOutput, UnprefixedHexString } from "./solc";
 
 interface ContractMdStruct {
-    // Prior to 0.6.x the swarm hash field was called bzzr0
+    // bzzr0 hash
     bzzr0?: HexString;
-    // After 0.6.x the swarm hash field was called ipfs
+    // bzzr1 hash
+    bzzr1?: HexString;
+    // ipfs hash
     ipfs?: HexString;
     // The solc version was included after 0.5.x
     solc?: string;
+    // Are experimental features enabled?
+    experimental?: boolean;
 }
 
 function getAllStringsAfterPrefix(hay: string, prefix: string, expLen: number): string[] {
@@ -52,35 +56,43 @@ function getAllBuffersAfterPrefix(hay: Buffer, prefix: Buffer, expLen: number): 
 
 const ipfsStrPrefix = "64697066735822";
 const ipfsBufPrefix = Buffer.from(ipfsStrPrefix, "hex");
-const swarmStrPrefix = "65627a7a72305820";
-const swarmBufPrefix = Buffer.from(swarmStrPrefix, "hex");
+const bzzr0 = "65627a7a72305820";
+const bzzr0BufPrefix = Buffer.from(bzzr0, "hex");
+const bzzr1 = "65627a7a72315820";
+const bzzr1BufPrefix = Buffer.from(bzzr1, "hex");
 
 function getBytecodeHashHacky(bytecode: string | Buffer): ContractMdStruct | undefined {
     if (typeof bytecode === "string") {
         const ipfsCandidates = new Set(getAllStringsAfterPrefix(bytecode, ipfsStrPrefix, 34));
-        const swarmCandidates = new Set(getAllStringsAfterPrefix(bytecode, swarmStrPrefix, 32));
+        const bzzr0Candidates = new Set(getAllStringsAfterPrefix(bytecode, bzzr0, 32));
+        const bzzr1Candidates = new Set(getAllStringsAfterPrefix(bytecode, bzzr1, 32));
 
-        if (ipfsCandidates.size + swarmCandidates.size !== 1) {
+        if (ipfsCandidates.size + bzzr0Candidates.size + bzzr1Candidates.size !== 1) {
             return undefined;
         }
 
         if (ipfsCandidates.size === 1) {
             return { ipfs: [...ipfsCandidates][0] };
+        } else if (bzzr0Candidates.size === 1) {
+            return { bzzr0: [...bzzr0Candidates][0] };
         } else {
-            return { bzzr0: [...swarmCandidates][0] };
+            return { bzzr1: [...bzzr1Candidates][0] };
         }
     } else {
         const ipfsCandidates = new Set(getAllBuffersAfterPrefix(bytecode, ipfsBufPrefix, 34));
-        const swarmCandidates = new Set(getAllBuffersAfterPrefix(bytecode, swarmBufPrefix, 32));
+        const bzzr0Candidates = new Set(getAllBuffersAfterPrefix(bytecode, bzzr0BufPrefix, 32));
+        const bzzr1Candidates = new Set(getAllBuffersAfterPrefix(bytecode, bzzr1BufPrefix, 32));
 
-        if (ipfsCandidates.size + swarmCandidates.size !== 1) {
+        if (ipfsCandidates.size + bzzr0Candidates.size + bzzr1Candidates.size !== 1) {
             return undefined;
         }
 
         if (ipfsCandidates.size === 1) {
             return { ipfs: "0x" + [...ipfsCandidates][0].toString("hex") };
+        } else if (bzzr0Candidates.size === 1) {
+            return { bzzr0: "0x" + [...bzzr0Candidates][0].toString("hex") };
         } else {
-            return { bzzr0: "0x" + [...swarmCandidates][0].toString("hex") };
+            return { bzzr1: "0x" + [...bzzr1Candidates][0].toString("hex") };
         }
     }
 }
@@ -124,6 +136,14 @@ function getDeployedBytecodeMdInfo(
         res.bzzr0 = toHexString(rawMd.bzzr);
     }
 
+    if (rawMd.hasOwnProperty("bzzr1")) {
+        res.bzzr1 = toHexString(rawMd.bzzr1);
+    }
+
+    if (rawMd.hasOwnProperty("experimental")) {
+        res.experimental = rawMd.experimental;
+    }
+
     if (rawMd.hasOwnProperty("solc")) {
         res.solc = `${rawMd.solc[0]}.${rawMd.solc[1]}.${rawMd.solc[2]}`;
     }
@@ -137,6 +157,10 @@ export function getCodeHash(deplBytecode: UnprefixedHexString | Buffer): HexStri
     // TODO: Should we prefix the hash with the hash type? bzzr0/ipfs
     if (md.bzzr0 !== undefined) {
         return md.bzzr0;
+    }
+
+    if (md.bzzr1 !== undefined) {
+        return md.bzzr1;
     }
 
     if (md.ipfs !== undefined) {
