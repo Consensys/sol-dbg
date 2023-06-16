@@ -176,8 +176,8 @@ export function ppLoc(loc: DataLocation): string {
 }
 
 export function ppView(view: DataView): string {
-    return `{type: ${view.type.pp()}, originalType: ${
-        view.originalType ? view.originalType.pp() : "undefined"
+    return `{type: ${view.type.pp()}, abiType: ${
+        view.abiType ? view.abiType.pp() : "undefined"
     }, loc: ${ppLoc(view.loc)}}`;
 }
 

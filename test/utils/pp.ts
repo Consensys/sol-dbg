@@ -218,13 +218,7 @@ export function ppStackTrace(
 
                 const val = decodeValue(view, state, infer);
 
-                funArgEls.push(
-                    ppValue(
-                        view.originalType !== undefined ? view.originalType : view.type,
-                        val,
-                        infer
-                    )
-                );
+                funArgEls.push(ppValue(view.type, val, infer));
             }
 
             funArgs = funArgEls.join(", ");

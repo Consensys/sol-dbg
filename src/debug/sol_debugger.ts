@@ -28,7 +28,7 @@ import {
 } from "..";
 import { getCodeHash, getCreationCodeHash } from "../artifacts";
 import { bigEndianBufToNumber } from "../utils";
-import { decodeMsgData } from "./abi";
+import { buildMsgDataViews } from "./abi";
 import { ContractInfo, getOffsetSrc, IArtifactManager } from "./artifact_manager";
 import { isCalldataType2Slots } from "./decoding";
 import {
@@ -161,7 +161,7 @@ export type DataLocation = StackLocation | MemoryLocation;
 
 export interface DataView {
     type: TypeNode;
-    originalType?: TypeNode;
+    abiType?: TypeNode;
     loc: DataLocation;
 }
 
@@ -804,7 +804,7 @@ export class SolTxDebugger {
 
             if (callee !== undefined) {
                 try {
-                    args = decodeMsgData(
+                    args = buildMsgDataViews(
                         callee,
                         data,
                         DataLocationKind.CallData,

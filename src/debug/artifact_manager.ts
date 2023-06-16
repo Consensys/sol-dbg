@@ -5,9 +5,13 @@ import {
     ASTNode,
     ASTReader,
     ContractDefinition,
+    FunctionDefinition,
+    FunctionVisibility,
     getABIEncoderVersion,
     InferType,
-    SourceUnit
+    SourceUnit,
+    StateVariableVisibility,
+    VariableDeclaration
 } from "solc-typed-ast";
 import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
 import {
@@ -35,6 +39,9 @@ export interface IArtifactManager {
     // TODO: Need a better way of identifying runtime contracts than (bytecode, isCreation)
     getFileById(id: number, code: string | Buffer, isCreation: boolean): SourceFileInfo | undefined;
     infer(version: string): InferType;
+    findMethod(
+        selector: HexString | Buffer
+    ): [ContractInfo, FunctionDefinition | VariableDeclaration] | undefined;
 }
 
 export interface BytecodeInfo {
@@ -338,5 +345,41 @@ export class ArtifactManager implements IArtifactManager {
         }
 
         return this._inferCache.get(version) as InferType;
+    }
+
+    findMethod(
+        selector: HexString | Buffer
+    ): [ContractInfo, FunctionDefinition | VariableDeclaration] | undefined {
+        if (selector instanceof Buffer) {
+            selector = selector.toString("hex");
+        }
+
+        for (const contract of this._contracts) {
+            if (!contract.ast) {
+                continue;
+            }
+
+            const inf = this.infer(contract.artifact.compilerVersion);
+            const ast = contract.ast;
+
+            const candidates = [
+                ...ast.vFunctions.filter(
+                    (method) =>
+                        method.visibility === FunctionVisibility.External ||
+                        method.visibility === FunctionVisibility.Public
+                ),
+                ...ast.vStateVariables.filter(
+                    (getter) => getter.visibility === StateVariableVisibility.Public
+                )
+            ];
+
+            for (const node of candidates) {
+                if (inf.signatureHash(node) === selector) {
+                    return [contract, node];
+                }
+            }
+        }
+
+        return undefined;
     }
 }

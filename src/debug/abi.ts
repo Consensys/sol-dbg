@@ -23,7 +23,7 @@ import {
     VariableDeclaration
 } from "solc-typed-ast";
 import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
-import { DataLocationKind, DataView } from ".";
+import { DataLocationKind, DataView, cd_decodeValue } from ".";
 import { getFunctionSelector } from "../utils";
 
 export function changeToLocation(typ: TypeNode, newLoc: SolDataLocation): TypeNode {
@@ -107,15 +107,48 @@ function abiStaticTypeSize(typ: TypeNode): number {
 }
 
 /**
+ * Given a callee AST Node (FunctionDefinition or VariableDeclaration
+ * correspondong to a getter), some msg `data`, that lives in location
+ * determined by `kind`, a type inference class as well as an `encoderVersion`
+ * try and decode the function arguments for that particular callee from the
+ * data.
+ */
+export function decodeMethodArgs(
+    callee: FunctionDefinition | VariableDeclaration,
+    data: Buffer,
+    kind: DataLocationKind.Memory | DataLocationKind.CallData,
+    infer: InferType,
+    encoderVersion: ABIEncoderVersion
+): Array<[string, any]> {
+    const dataViews = buildMsgDataViews(callee, data, kind, infer, encoderVersion);
+
+    const res: Array<[string, any]> = [];
+
+    for (let i = 0; i < dataViews.length; i++) {
+        const name = dataViews[i][0];
+        const view = dataViews[i][1];
+
+        if (view === undefined) {
+            res.push([name, undefined]);
+            continue;
+        }
+
+        assert(view.abiType !== undefined && view.loc.kind === DataLocationKind.CallData, ``);
+
+        const val = cd_decodeValue(view.abiType, view.type, view.loc, data, BigInt(4), infer);
+
+        res.push([name, val ? val[0] : val]);
+    }
+
+    return res;
+}
+
+/**
  * An ABI-decoder implementation that is resilient to failures in some arguments decoding.
  * This function will return partial decoding results. This is needed since the fuzzer may not
  * always produce inputs that decode in their entirety.
- *
- * TODO: (dimo): The name of this function is bad. Its not doing any decoding - just building 'DataView' elements
- * into msg.data that match a specific function signature. Also this should be moved into sol_debugger, in the same place
- * where `SolTxDebugger.decodeFunArgs` lives.
  */
-export function decodeMsgData(
+export function buildMsgDataViews(
     callee: FunctionDefinition | VariableDeclaration,
     data: Buffer,
     kind: DataLocationKind.Memory | DataLocationKind.CallData,
@@ -154,7 +187,7 @@ export function decodeMsgData(
 
         staticOff += staticSize;
 
-        const val = loc ? { type: originalType, loc } : undefined;
+        const val = loc ? { type: originalType, abiType: typ, loc } : undefined;
 
         res.push([name, val]);
     }
