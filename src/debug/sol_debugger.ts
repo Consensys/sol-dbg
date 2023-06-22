@@ -4,7 +4,7 @@ import { Chain, Common, Hardfork } from "@ethereumjs/common";
 import { EVM, EVMOpts } from "@ethereumjs/evm/dist/evm";
 import { Transaction } from "@ethereumjs/tx";
 import { InterpreterStep } from "@ethereumjs/evm";
-import { StateManager } from "@ethereumjs/statemanager";
+import { DefaultStateManager, StateManager } from "@ethereumjs/statemanager";
 import { EEI, RunTxResult, VM } from "@ethereumjs/vm";
 import { Address, rlp } from "ethereumjs-util";
 import {
@@ -656,9 +656,17 @@ export class SolTxDebugger {
         return res;
     }
 
-    static async createVm(stateManager: StateManager, foundryCheatcodes: boolean): Promise<VM> {
+    static async createVm(
+        stateManager: StateManager | undefined,
+        foundryCheatcodes: boolean
+    ): Promise<VM> {
         const common = new Common({ chain: Chain.Mainnet, hardfork: Hardfork.Shanghai });
         const blockchain = await Blockchain.create({ common });
+
+        if (!stateManager) {
+            stateManager = new DefaultStateManager();
+        }
+
         const eei = new EEI(stateManager, common, blockchain);
 
         const evm = await SolTxDebugger.getEVM(

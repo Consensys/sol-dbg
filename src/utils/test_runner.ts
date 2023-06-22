@@ -8,7 +8,7 @@ import { HexString } from "../artifacts";
 import { ZERO_ADDRESS_STRING, hexStrToBuf32, makeFakeTransaction } from "./misc";
 import { Hardfork } from "@ethereumjs/common";
 
-interface BaseTestStep {
+export interface BaseTestStep {
     address: HexString;
     gasLimit: HexString;
     gasPrice: HexString;
@@ -22,7 +22,7 @@ interface BaseTestStep {
     blockTime: HexString;
 }
 
-interface AccountDescription {
+export interface AccountDescription {
     nonce: number;
     balance: HexString;
     code: HexString;
@@ -31,7 +31,7 @@ interface AccountDescription {
     };
 }
 
-interface InitialState {
+export interface InitialState {
     accounts: {
         [address: HexString]: AccountDescription;
     };

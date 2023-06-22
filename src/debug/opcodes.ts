@@ -123,7 +123,7 @@ export enum OPCODES {
     Invalid_5c,
     Invalid_5d,
     Invalid_5e,
-    Invalid_5f,
+    PUSH0,
     PUSH1,
     PUSH2,
     PUSH3,
@@ -1239,13 +1239,13 @@ export const OpcodeInfo: EVMOpInfo[] = [
     },
     {
         opcode: 0x5f,
-        mnemonic: "Invalid",
+        mnemonic: "PUSH0",
         length: 1,
         immediates: [],
         nPop: 0,
-        nPush: 0,
-        valid: false,
-        controlFlow: InstructionControlFlow.StopInvalid
+        nPush: 1,
+        valid: true,
+        controlFlow: InstructionControlFlow.NextInstruction
     },
     {
         opcode: 0x60,

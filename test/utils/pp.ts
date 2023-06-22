@@ -328,3 +328,26 @@ export function debugDumpTrace(
         );
     }
 }
+
+export function ppStep(step: StepState): string {
+    let contractId: string;
+    const addrStr = `${step.address.toString().slice(36)}`;
+
+    if (step.contractInfo) {
+        contractId = `${step.contractInfo.contractName}@${addrStr}`;
+    } else if (step.codeMdHash) {
+        contractId = `0x${step.codeMdHash.slice(0, 6)}...${step.codeMdHash.slice(60)}@${addrStr}`;
+    } else {
+        contractId = `unknown@${addrStr}`;
+    }
+    const immStr = step.op.immediates
+        .map((imm) => step.code.slice(step.pc + 1, step.pc + 1 + imm.length).toString("hex"))
+        .join(" ");
+    const stackStr = step.evmStack
+        .slice(step.evmStack.length - step.op.nPop, step.evmStack.length)
+        .map((v) => v.toString("hex"))
+        .join(", ");
+    return `${contractId}# ${step.pc}: ${step.op.mnemonic}(${step.op.opcode.toString(
+        16
+    )}) ${immStr} [${stackStr}]`;
+}
