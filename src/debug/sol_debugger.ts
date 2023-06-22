@@ -656,14 +656,14 @@ export class SolTxDebugger {
         return res;
     }
 
-    async createVm(stateManager: StateManager): Promise<VM> {
+    static async createVm(stateManager: StateManager, foundryCheatcodes: boolean): Promise<VM> {
         const common = new Common({ chain: Chain.Mainnet, hardfork: Hardfork.Shanghai });
         const blockchain = await Blockchain.create({ common });
         const eei = new EEI(stateManager, common, blockchain);
 
         const evm = await SolTxDebugger.getEVM(
             { common, eei, allowUnlimitedContractSize: true },
-            this.foundryCheatcodes
+            foundryCheatcodes
         );
 
         const vm = await VM.create({
@@ -682,7 +682,7 @@ export class SolTxDebugger {
         block: Block | undefined,
         stateManager: StateManager
     ): Promise<[StepState[], RunTxResult]> {
-        const vm = await this.createVm(stateManager);
+        const vm = await SolTxDebugger.createVm(stateManager, this.foundryCheatcodes);
 
         const sender = tx.getSenderAddress().toString();
         const receiver = tx.to === undefined ? ZERO_ADDRESS_STRING : tx.to.toString();
