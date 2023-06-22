@@ -22,7 +22,8 @@ import {
     FoundryCheatcodesAddress,
     getFoundryCtx
 } from "../../src/debug/foundry_cheatcodes";
-import { ResultKind, TestCase, TestStep, VMTestRunner, ppStackTrace } from "../utils";
+import { ppStackTrace } from "../utils";
+import { ResultKind, TestCase, TestStep, VMTestRunner } from "../../src/utils";
 
 /**
  * Find the last step in the non-internal code, that leads to the first revert

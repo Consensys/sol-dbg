@@ -4,8 +4,8 @@ import { Transaction, TxData } from "@ethereumjs/tx";
 import { Account, Address } from "@ethereumjs/util";
 import { RunTxResult, VM } from "@ethereumjs/vm";
 import { assert } from "solc-typed-ast";
-import { HexString } from "../../src/artifacts";
-import { ZERO_ADDRESS_STRING, hexStrToBuf32, makeFakeTransaction } from "../../src/utils/misc";
+import { HexString } from "../artifacts";
+import { ZERO_ADDRESS_STRING, hexStrToBuf32, makeFakeTransaction } from "./misc";
 import { Hardfork } from "@ethereumjs/common";
 
 interface BaseTestStep {
