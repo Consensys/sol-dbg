@@ -1,16 +1,12 @@
 import { Block } from "@ethereumjs/block";
-import Common from "@ethereumjs/common";
+import { StateManager } from "@ethereumjs/statemanager";
 import { Transaction, TxData } from "@ethereumjs/tx";
-import VM from "@ethereumjs/vm";
-import { RunTxResult } from "@ethereumjs/vm/dist/runTx";
-import { StateManager } from "@ethereumjs/vm/dist/state";
-import { VMContext } from "@remix-project/remix-simulator/src/vm-context";
-import { VmProxy } from "@remix-project/remix-simulator/src/VmProxy";
-import { Account, Address, BN } from "ethereumjs-util";
+import { Account, Address } from "@ethereumjs/util";
+import { RunTxResult, VM } from "@ethereumjs/vm";
 import { assert } from "solc-typed-ast";
-import { HexString } from "../../src/artifacts";
-import { hexStrToBuf32, makeFakeTransaction, ZERO_ADDRESS_STRING } from "../../src/utils/misc";
-import { SolTxDebugger } from "../../src";
+import { HexString } from "../artifacts";
+import { ZERO_ADDRESS_STRING, hexStrToBuf32, makeFakeTransaction } from "./misc";
+import { Hardfork } from "@ethereumjs/common";
 
 interface BaseTestStep {
     address: HexString;
@@ -86,64 +82,22 @@ export interface TestCase extends BaseTestCase {
     steps: TestStep[];
 }
 
-export class AdjustedVMContext extends VMContext {
-    /**
-     * Skip using `Common` due to it causes failures and restrictions.
-     *
-     * We also want to preserve original StateManager,
-     * as it is not yet exported and therefore is unable to be instantiated here.
-     */
-    createVm(): {
-        vm: VM;
-        web3vm: VmProxy;
-        stateManager: any;
-        common: Common;
-    } {
-        const data = super.createVm(this.currentFork);
-
-        const vm = SolTxDebugger.getVM(
-            {
-                stateManager: data.vm.stateManager,
-
-                activatePrecompiles: true,
-                allowUnlimitedContractSize: true
-            },
-            true
-        );
-
-        data.vm = vm;
-        data.common = vm._common;
-
-        data.web3vm.setVM(vm);
-
-        return data;
-    }
-}
-
 /**
  * Helper class to re-play harvey test cases on a in-memory VmProxy
  */
 export class VMTestRunner {
-    private _provider: VmProxy;
+    private _vm: VM;
     private _txs: Transaction[];
     private _txToBlock: Map<string, Block>;
     private _results: RunTxResult[];
     private _stateRootBeforeTx = new Map<string, StateManager>();
 
     get vm(): VM {
-        return this._provider.vm;
+        return this._vm;
     }
 
-    constructor(provider?: VmProxy) {
-        if (provider === undefined) {
-            const vmContext = new AdjustedVMContext();
-
-            const { web3vm } = vmContext.currentVm;
-
-            provider = web3vm;
-        }
-
-        this._provider = provider;
+    constructor(vm: VM) {
+        this._vm = vm;
         this._txs = [];
         this._results = [];
         this._txToBlock = new Map();
@@ -162,8 +116,7 @@ export class VMTestRunner {
     }
 
     private async setupInitialState(initialState: InitialState): Promise<void> {
-        const vm = this._provider.vm;
-        const state = vm.stateManager;
+        const state = this.vm.stateManager;
 
         await state.checkpoint();
 
@@ -175,8 +128,8 @@ export class VMTestRunner {
 
             const acct = new Account();
 
-            acct.nonce = new BN(nonce.toString(16), 16);
-            acct.balance = new BN(balance.slice(2), 16);
+            acct.nonce = BigInt(nonce);
+            acct.balance = BigInt(balance);
 
             state.putAccount(address, acct);
 
@@ -191,19 +144,18 @@ export class VMTestRunner {
         }
 
         await state.commit();
+        await state.flush();
     }
 
     async harveyStepToTransaction(step: BaseTestStep): Promise<Transaction> {
-        const vm = this._provider.vm;
-
         const senderAddress = Address.fromString(step.origin);
-        const senderAccount = await vm.stateManager.getAccount(senderAddress);
+        const senderAccount = await this.vm.stateManager.getAccount(senderAddress);
         const senderNonce = senderAccount.nonce;
 
         const txData: TxData = {
             value: step.value,
             gasLimit: step.gasLimit,
-            gasPrice: 1,
+            gasPrice: 8,
             data: step.input,
             nonce: senderNonce
         };
@@ -212,36 +164,43 @@ export class VMTestRunner {
             txData.to = step.address;
         }
 
-        return makeFakeTransaction(txData, step.origin);
+        return makeFakeTransaction(txData, step.origin, this._vm._common);
     }
 
     harveyStepToBlock(step: BaseTestStep): Block {
-        return Block.fromBlockData({
-            header: {
-                coinbase: step.origin,
-                difficulty: step.blockDifficulty,
-                gasLimit: step.blockGasLimit,
-                number: new BN(step.blockNumber.slice(2), 16),
-                timestamp: new BN(step.blockTime.slice(2), 16)
+        return Block.fromBlockData(
+            {
+                header: {
+                    coinbase: step.origin,
+                    difficulty:
+                        this.vm._common.hardfork() === Hardfork.Shanghai ? 0 : step.blockDifficulty,
+                    gasLimit: step.blockGasLimit,
+                    number: step.blockNumber,
+                    timestamp: step.blockTime
+                }
+            },
+            {
+                common: this.vm._common
             }
-        });
+        );
     }
 
     private async _runTxInt(tx: Transaction, block: Block): Promise<RunTxResult> {
-        const vm = this._provider.vm;
         const txHash = tx.hash().toString("hex");
 
         this._txs.push(tx);
 
-        this._stateRootBeforeTx.set(txHash, vm.stateManager.copy());
+        this._stateRootBeforeTx.set(txHash, this.vm.stateManager.copy());
         this._txToBlock.set(txHash, block);
-        const res = vm.runTx({
+
+        const res = this.vm.runTx({
             tx,
             block,
             skipBalance: true,
             skipNonce: true,
             skipBlockGasLimitValidation: true
         });
+        await this.vm.stateManager.flush();
 
         return res;
     }

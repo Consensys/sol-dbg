@@ -1,28 +1,29 @@
-import { RunTxResult } from "@ethereumjs/vm/dist/runTx";
+import { DefaultStateManager } from "@ethereumjs/statemanager";
+import { RunTxResult, VM } from "@ethereumjs/vm";
 import expect from "expect";
 import fse from "fs-extra";
-import { assert, FunctionDefinition } from "solc-typed-ast";
+import { FunctionDefinition, assert } from "solc-typed-ast";
 import {
     ArtifactManager,
-    bigEndianBufToNumber,
     ContractInfo,
     DecodedBytecodeSourceMapEntry,
-    getContractInfo,
-    lastExternalFrame,
-    lsJson,
     PartialSolcOutput,
     SolTxDebugger,
     SourceFileInfo,
     StepState,
+    bigEndianBufToNumber,
+    getContractInfo,
+    lastExternalFrame,
+    lsJson,
     wordToAddress
 } from "../../src";
-import { ppStackTrace, ResultKind, TestCase, TestStep, VMTestRunner } from "../utils";
-import VM from "@ethereumjs/vm";
 import {
     FAIL_MSG_DATA,
     FoundryCheatcodesAddress,
     getFoundryCtx
 } from "../../src/debug/foundry_cheatcodes";
+import { ppStackTrace } from "../utils";
+import { ResultKind, TestCase, TestStep, VMTestRunner } from "../../src/utils";
 
 /**
  * Find the last step in the non-internal code, that leads to the first revert
@@ -123,7 +124,7 @@ function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {
                 );
             }
 
-            const foundryCtx = getFoundryCtx(vm);
+            const foundryCtx = getFoundryCtx(vm.evm);
 
             const foundryFailed = foundryCtx.failCalled;
             if (foundryFailed) {
@@ -144,9 +145,10 @@ function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {
         }
 
         case ResultKind.FoundryFail: {
-            const foundryCtx = getFoundryCtx(vm);
+            const foundryCtx = getFoundryCtx(vm.evm);
 
             const failed = foundryCtx.failCalled;
+
             if (!failed) {
                 console.error(`Expected a foundry fail call, but the tx step succeeded`);
             }
@@ -190,9 +192,9 @@ export function stackTracesEq(actualST: string, expectedST: string[]): boolean {
 function getStepFailTraceStep(step: TestStep, trace: StepState[]): StepState | undefined {
     if (step.result.kind === "revert") {
         return findLastNonInternalStepBeforeRevert(trace);
-    } else {
-        return findFirstCallToFail(trace);
     }
+
+    return findFirstCallToFail(trace);
 }
 
 describe(`Local tests`, async () => {
@@ -222,8 +224,10 @@ describe(`Local tests`, async () => {
                             foundryCheatcodes: true,
                             strict: false
                         });
-                        runner = new VMTestRunner();
-                        testJSON = fse.readJsonSync(txFile) as TestCase;
+
+                        runner = new VMTestRunner(await solDbg.createVm(new DefaultStateManager()));
+
+                        testJSON = fse.readJsonSync(txFile);
 
                         await runner.runTestCase(testJSON);
                     });
@@ -242,8 +246,8 @@ describe(`Local tests`, async () => {
 
                             if (
                                 !(
-                                    curStep.result.kind === "revert" ||
-                                    curStep.result.kind === "foundry_fail"
+                                    curStep.result.kind === ResultKind.Revert ||
+                                    curStep.result.kind === ResultKind.FoundryFail
                                 )
                             ) {
                                 continue;

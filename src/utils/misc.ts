@@ -12,6 +12,7 @@ import {
 } from "solc-typed-ast";
 import { HexString, UnprefixedHexString } from "..";
 import { DataLocation, DataLocationKind, DataView, Stack, Storage } from "../debug/sol_debugger";
+import { Common } from "@ethereumjs/common";
 
 export const ZERO_ADDRESS_STRING: HexString = "0x0000000000000000000000000000000000000000";
 export const ZERO_ADDRESS = Address.fromString(ZERO_ADDRESS_STRING);
@@ -76,16 +77,15 @@ export function padStart(buf: Buffer, toSize: number, filler: number): Buffer {
     return res;
 }
 
-export function makeFakeTransaction(txData: TxData, from: string): Transaction {
+export function makeFakeTransaction(txData: TxData, from: string, common: Common): Transaction {
     const fromAddr = Address.fromString(from);
-    const tx = new Transaction(txData, { freeze: false });
+    const tx = new Transaction(txData, { common, freeze: false });
 
     /**
-     *  Intentionally override getSenderAddress() method
+     *  Intentionally override
      */
-    (tx as unknown as any).getSenderAddress = () => {
-        return fromAddr;
-    };
+    tx.getSenderAddress = () => fromAddr;
+    tx.isSigned = () => true;
 
     return tx;
 }

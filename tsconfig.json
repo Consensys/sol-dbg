@@ -1,6 +1,6 @@
 {
     "compilerOptions": {
-        "target": "ES2018",
+        "target": "ES2020",
         "module": "commonjs",
         "declaration": true,
         "declarationMap": true,
@@ -26,5 +26,8 @@
     },
 
     "include": ["src/**/*"],
-    "exclude": ["src/faash/command_lang/parser_header.ts", "src/faash/partial_command_lang/parser_header.ts"]
+    "exclude": [
+        "src/faash/command_lang/parser_header.ts",
+        "src/faash/partial_command_lang/parser_header.ts"
+    ]
 }

@@ -1,10 +1,11 @@
-import { OpHandler, Opcode } from "@ethereumjs/vm/dist/evm/opcodes";
-import { AsyncDynamicGasHandler, SyncDynamicGasHandler } from "@ethereumjs/vm/dist/evm/opcodes/gas";
-import { AddOpcode } from "@ethereumjs/vm/dist/evm/types";
+import { OpHandler, Opcode } from "@ethereumjs/evm/dist/opcodes";
+import { AsyncDynamicGasHandler, SyncDynamicGasHandler } from "@ethereumjs/evm/dist/opcodes/gas";
+import { AddOpcode } from "@ethereumjs/evm/dist/types";
 import { FoundryContext } from "./foundry_cheatcodes";
-import Common from "@ethereumjs/common";
-import { RunState } from "@ethereumjs/vm/dist/evm/interpreter";
-import { BN, Address } from "ethereumjs-util";
+import { RunState } from "@ethereumjs/evm/dist/interpreter";
+import { Address } from "ethereumjs-util";
+import { Common } from "@ethereumjs/common";
+import { bigEndianBufToBigint } from "../utils";
 
 function interopseOnOp(code: number, opcodes: any, handler: OpHandler): AddOpcode {
     const originalOp: Opcode = opcodes.opcodes.get(code);
@@ -28,8 +29,8 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
             (runState: RunState, common: Common): void => {
                 const time =
                     foundryCtx.timeWarp === undefined
-                        ? runState.eei.getBlockTimestamp()
-                        : new BN(foundryCtx.timeWarp.toString());
+                        ? runState.interpreter.getBlockTimestamp()
+                        : foundryCtx.timeWarp;
 
                 runState.stack.push(time);
             }
@@ -39,8 +40,8 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
             (runState: RunState, common: Common): void => {
                 const number =
                     foundryCtx.rollBockNum === undefined
-                        ? runState.eei.getBlockNumber()
-                        : new BN(foundryCtx.rollBockNum.toString());
+                        ? runState.interpreter.getBlockNumber()
+                        : foundryCtx.rollBockNum;
 
                 runState.stack.push(number);
             }
@@ -50,10 +51,10 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
             (runState: RunState, common: Common): void => {
                 const [, prankOrigin] = foundryCtx.matchPrank(true);
 
-                const origin: BN =
+                const origin =
                     prankOrigin instanceof Address
-                        ? new BN(prankOrigin.buf)
-                        : runState.eei.getTxOrigin();
+                        ? bigEndianBufToBigint(prankOrigin.toBuffer())
+                        : runState.interpreter.getTxOrigin();
 
                 runState.stack.push(origin);
             }
@@ -63,10 +64,10 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
             (runState: RunState, common: Common): void => {
                 const [prankSender] = foundryCtx.matchPrank(false);
 
-                const caller: BN =
+                const caller =
                     prankSender instanceof Address
-                        ? new BN(prankSender.buf)
-                        : runState.eei.getCaller();
+                        ? bigEndianBufToBigint(prankSender.toBuffer())
+                        : runState.interpreter.getCaller();
 
                 runState.stack.push(caller);
             }
