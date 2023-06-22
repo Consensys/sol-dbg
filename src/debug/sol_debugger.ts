@@ -1,54 +1,54 @@
 import { Block } from "@ethereumjs/block";
+import { Blockchain } from "@ethereumjs/blockchain";
+import { Chain, Common, Hardfork } from "@ethereumjs/common";
+import { EVM, EVMOpts } from "@ethereumjs/evm/dist/evm";
 import { Transaction } from "@ethereumjs/tx";
-import VM, { VMOpts } from "@ethereumjs/vm";
-import { InterpreterStep } from "@ethereumjs/vm/dist/evm/interpreter";
-import { RunTxResult } from "@ethereumjs/vm/dist/runTx";
-import { StateManager } from "@ethereumjs/vm/dist/state";
+import { InterpreterStep } from "@ethereumjs/evm";
+import { StateManager } from "@ethereumjs/statemanager";
+import { EEI, RunTxResult, VM } from "@ethereumjs/vm";
 import { Address, rlp } from "ethereumjs-util";
 import {
-    assert,
     ASTNode,
     FunctionDefinition,
     StateVariableVisibility,
     TypeNode,
-    VariableDeclaration
+    VariableDeclaration,
+    assert
 } from "solc-typed-ast";
 import {
-    bigEndianBufToBigint,
-    bnToBigInt,
     DecodedBytecodeSourceMapEntry,
-    getFunctionSelector,
     HexString,
     ImmMap,
-    padStart,
     UnprefixedHexString,
-    wordToAddress,
     ZERO_ADDRESS,
-    ZERO_ADDRESS_STRING
+    ZERO_ADDRESS_STRING,
+    bigEndianBufToBigint,
+    getFunctionSelector,
+    padStart,
+    wordToAddress
 } from "..";
 import { getCodeHash, getCreationCodeHash } from "../artifacts";
-import { bigEndianBufToNumber } from "../utils";
 import { buildMsgDataViews } from "./abi";
-import { ContractInfo, getOffsetSrc, IArtifactManager } from "./artifact_manager";
+import { bigEndianBufToNumber, bigIntToBuf } from "../utils";
+import { ContractInfo, IArtifactManager, getOffsetSrc } from "./artifact_manager";
 import { isCalldataType2Slots } from "./decoding";
 import {
-    changesMemory,
-    createsContract,
-    EVMOpInfo,
-    getOpInfo,
-    increasesDepth,
-    OPCODES
-} from "./opcodes";
-import {
-    FoundryCheatcodePrecompile,
     FoundryCheatcodesAddress,
-    FoundryContext,
     interpRunListeners,
+    makeFoundryCheatcodePrecompile,
     setFoundryCtx
 } from "./foundry_cheatcodes";
-import { getOpcodesForHF } from "@ethereumjs/vm/dist/evm/opcodes";
+import { getOpcodesForHF } from "@ethereumjs/evm/dist/opcodes";
 import { foundryInterposedOps } from "./opcode_interposing";
 import { EventEmitter } from "stream";
+import {
+    EVMOpInfo,
+    OPCODES,
+    changesMemory,
+    createsContract,
+    getOpInfo,
+    increasesDepth
+} from "./opcodes";
 
 export enum FrameKind {
     Call = "call",
@@ -295,6 +295,7 @@ export class SolTxDebugger {
 
         if (opts) {
             this.strict = opts.strict !== undefined ? opts.strict : this.strict;
+
             this.foundryCheatcodes =
                 opts.foundryCheatcodes !== undefined
                     ? opts.foundryCheatcodes
@@ -500,23 +501,27 @@ export class SolTxDebugger {
         step: StepVMState,
         trace: StepState[]
     ): Promise<[Buffer, HexString | undefined]> {
-        const lastStep: StepState | undefined =
-            trace.length > 0 ? trace[trace.length - 1] : undefined;
+        const lastStep = trace.length > 0 ? trace[trace.length - 1] : undefined;
 
         let code: Buffer;
         let codeMdHash: HexString | undefined;
 
         if (lastStep !== undefined && createsContract(lastStep.op)) {
             const lastStackTop = lastStep.evmStack.length - 1;
+
             const off = bigEndianBufToNumber(lastStep.evmStack[lastStackTop - 1]);
             const size = bigEndianBufToNumber(lastStep.evmStack[lastStackTop - 2]);
+
             code = lastStep.memory.slice(off, off + size);
+
             codeMdHash = getCreationCodeHash(code);
         } else if (lastStep === undefined || !lastStep.codeAddress.equals(step.codeAddress)) {
             code = await vm.stateManager.getContractCode(step.codeAddress);
+
             codeMdHash = getCodeHash(code);
         } else {
             code = lastStep.code;
+
             codeMdHash = lastStep.codeMdHash;
         }
 
@@ -525,11 +530,12 @@ export class SolTxDebugger {
 
     async processRawTraceStep(
         vm: VM,
+        stateManager: StateManager,
         step: InterpreterStep,
         trace: StepState[],
         stack: Frame[]
     ): Promise<StepState> {
-        const evmStack = step.stack.map((word) => Buffer.from(word.toArray("be", 32)));
+        const evmStack = step.stack.map((word) => bigIntToBuf(word, 32, "big"));
         const lastStep = trace.length > 0 ? trace[trace.length - 1] : undefined;
 
         let memory: Memory;
@@ -541,17 +547,18 @@ export class SolTxDebugger {
         }
 
         const op = getOpInfo(step.opcode.name);
+
         let storage: Storage;
 
         if (lastStep === undefined || lastStep.op.opcode === OPCODES.SSTORE) {
-            storage = await getStorage(step.stateManager, step.address);
+            storage = await getStorage(stateManager, step.address);
         } else {
             storage = lastStep.storage;
         }
 
         const gasCost = BigInt(step.opcode.fee);
         const dynamicGasCost =
-            step.opcode.dynamicFee === undefined ? gasCost : bnToBigInt(step.opcode.dynamicFee);
+            step.opcode.dynamicFee === undefined ? gasCost : step.opcode.dynamicFee;
 
         // First translate the basic VM state
         const vmState: StepVMState = {
@@ -562,13 +569,14 @@ export class SolTxDebugger {
             pc: step.pc,
             gasCost,
             dynamicGasCost,
-            gas: bnToBigInt(step.gasLeft),
+            gas: step.gasLeft,
             depth: step.depth + 1, // Match geth's depth starting at 1
             address: step.address,
             codeAddress: step.codeAddress
         };
 
         const [code, codeMdHash] = await this.getCodeAndMdHash(vm, vmState, trace);
+
         await this.adjustStackFrame(stack, vmState, trace, code, codeMdHash);
 
         const curExtFrame = lastExternalFrame(stack);
@@ -583,6 +591,7 @@ export class SolTxDebugger {
         }
 
         let emittedEvent: EventDesc | undefined = undefined;
+
         // Finally check if an event is being emitted for this step
         if (step.opcode.name.startsWith("LOG")) {
             const off = bigEndianBufToNumber(evmStack[evmStack.length - 1]);
@@ -612,16 +621,17 @@ export class SolTxDebugger {
         };
     }
 
-    static getVM(opts: VMOpts, foundryCheatcodes: boolean): VM {
+    static async getEVM(opts: EVMOpts, foundryCheatcodes: boolean): Promise<EVM> {
+        const tmpEvm = await EVM.create(opts);
+
         if (!foundryCheatcodes) {
-            return new VM(opts);
+            return tmpEvm;
         }
 
-        const dummyVM = new VM(opts);
-        const opcodes = getOpcodesForHF(dummyVM._common);
-        const foundryCtx: FoundryContext = new FoundryContext();
+        const opcodes = getOpcodesForHF(tmpEvm._common);
+        const [precompile, foundryCtx] = makeFoundryCheatcodePrecompile();
 
-        const optsCopy: VMOpts = {
+        const optsCopy: EVMOpts = {
             ...opts,
             customOpcodes: [
                 ...(opts.customOpcodes ? opts.customOpcodes : []),
@@ -631,28 +641,49 @@ export class SolTxDebugger {
                 ...(opts.customPrecompiles ? opts.customPrecompiles : []),
                 {
                     address: FoundryCheatcodesAddress,
-                    function: FoundryCheatcodePrecompile
+                    function: precompile
                 }
             ]
         };
 
-        const res = new VM(optsCopy);
-
-        setFoundryCtx(res, foundryCtx);
+        const res = await EVM.create(optsCopy);
 
         const emitter = new EventEmitter();
         emitter.on("beforeInterpRun", foundryCtx.beforeInterpRunCB.bind(foundryCtx));
         emitter.on("afterInterpRun", foundryCtx.afterInterpRunCB.bind(foundryCtx));
         interpRunListeners.set(res, emitter);
+        setFoundryCtx(res, foundryCtx);
         return res;
+    }
+
+    async createVm(stateManager: StateManager): Promise<VM> {
+        const common = new Common({ chain: Chain.Mainnet, hardfork: Hardfork.Shanghai });
+        const blockchain = await Blockchain.create({ common });
+        const eei = new EEI(stateManager, common, blockchain);
+
+        const evm = await SolTxDebugger.getEVM(
+            { common, eei, allowUnlimitedContractSize: true },
+            this.foundryCheatcodes
+        );
+
+        const vm = await VM.create({
+            common,
+            blockchain,
+            stateManager,
+            evm,
+            activatePrecompiles: true
+        });
+
+        return vm;
     }
 
     async debugTx(
         tx: Transaction,
         block: Block | undefined,
-        stateManager: StateManager | undefined
+        stateManager: StateManager
     ): Promise<[StepState[], RunTxResult]> {
-        const vm = SolTxDebugger.getVM({ stateManager }, this.foundryCheatcodes);
+        const vm = await this.createVm(stateManager);
+
         const sender = tx.getSenderAddress().toString();
         const receiver = tx.to === undefined ? ZERO_ADDRESS_STRING : tx.to.toString();
         const isCreation = receiver === ZERO_ADDRESS_STRING;
@@ -663,25 +694,33 @@ export class SolTxDebugger {
         if (isCreation) {
             curFrame = await this.makeCreationFrame(sender, tx.data, 0);
         } else {
-            const code = await vm.stateManager.getContractCode(tx.to as Address);
-            const codeHash = getCodeHash(code);
-            curFrame = await this.makeCallFrame(
-                sender,
-                tx.to as Address,
-                tx.data,
-                code,
-                codeHash,
-                0
+            assert(
+                tx.to !== undefined,
+                'Expected "to" of tx {0} to be defined, got undefined instead',
+                tx.hash().toString("hex")
             );
+
+            const code = await vm.stateManager.getContractCode(tx.to);
+
+            /// @todo remove - arbitrary restriction, only good for debugging
+            assert(code.length > 0, "Missing code for address {0}", tx.to.toString());
+
+            const codeHash = getCodeHash(code);
+
+            curFrame = await this.makeCallFrame(sender, tx.to, tx.data, code, codeHash, 0);
         }
 
         stack.push(curFrame);
 
         const trace: StepState[] = [];
 
-        vm.on("step", async (step: InterpreterStep, next: any) => {
-            const curStep = await this.processRawTraceStep(vm, step, trace, stack);
+        assert(vm.evm.events !== undefined, "Unable to access EVM events at this point");
+
+        vm.evm.events.on("step", async (step: InterpreterStep, next: any) => {
+            const curStep = await this.processRawTraceStep(vm, vm.stateManager, step, trace, stack);
+
             trace.push(curStep);
+
             next();
         });
 

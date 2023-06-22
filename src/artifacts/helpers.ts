@@ -18,6 +18,7 @@ interface ContractMdStruct {
 
 function getAllStringsAfterPrefix(hay: string, prefix: string, expLen: number): string[] {
     const res: string[] = [];
+
     let off = hay.length;
 
     while (true) {
@@ -37,6 +38,7 @@ function getAllStringsAfterPrefix(hay: string, prefix: string, expLen: number): 
 
 function getAllBuffersAfterPrefix(hay: Buffer, prefix: Buffer, expLen: number): Buffer[] {
     const res: Buffer[] = [];
+
     let off = hay.length;
 
     while (true) {
