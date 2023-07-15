@@ -8,12 +8,13 @@ import {
     setLengthLeft,
     setLengthRight
 } from "ethereumjs-util";
-import { bigIntToBuf } from "../utils";
+import { bigEndianBufToBigint, bigIntToBuf } from "../utils";
 import {
     Env,
     Interpreter,
     InterpreterOpts,
-    InterpreterResult
+    InterpreterResult,
+    RunState
 } from "@ethereumjs/evm/dist/interpreter";
 import EventEmitter from "events";
 import { ERROR, EvmError } from "@ethereumjs/evm/dist/exceptions";
@@ -78,6 +79,9 @@ export const PRANK_SELECTOR02 = getSelectorHex("prank(address,address)");
 export const START_PRANK_SELECTOR01 = getSelectorHex("startPrank(address)");
 export const START_PRANK_SELECTOR02 = getSelectorHex("startPrank(address,address)");
 export const STOP_PRANK_SELECTOR = getSelectorHex("stopPrank()");
+export const EXPECT_REVERT_SELECTOR01 = getSelectorHex("expectRevert()");
+export const EXPECT_REVERT_SELECTOR02 = getSelectorHex("expectRevert(bytes4)");
+export const EXPECT_REVERT_SELECTOR03 = getSelectorHex("expectRevert(bytes)");
 
 export const FAIL_LOC = setLengthRight(Buffer.from("failed", "utf-8"), 32).toString("hex");
 
@@ -95,12 +99,74 @@ export interface FoundryPrank {
 }
 
 /**
+ * A type union containing the different descriptions for "expectRevert". It could be either
+ *  - boolean (true) - any revert
+ *  - bigint (bytes4) - corresponds to the selector of the expected event
+ *  - Buffer (bytes) - corresponds to the exact exception byte we expect
+ *  - undefined - no expected revert (default value)
+ */
+export type RevertMatch = Buffer | bigint | boolean | undefined;
+
+/**
+ * Check whether the returned value and data from the sub-context matches the
+ * expected revert descriptor.
+ */
+export function returnStateMatchesRevert(
+    ret: bigint,
+    state: RunState,
+    expected: RevertMatch
+): boolean {
+    // No revert expected. Doesn't matter what happen
+    if (expected === undefined) {
+        return true;
+    }
+
+    // Any revert was expected. Just check that the return value is 0.
+    // @todo (dimo): Need to distinguish revert() and invalid() somehow here.
+    //       See failing test test_expectRevert_17
+    if (typeof expected === "boolean") {
+        return expected === (ret === 0n);
+    }
+
+    const excDataSize = state.interpreter.getReturnDataSize();
+    const excData = state.interpreter.getReturnData();
+
+    // A specific selector is expected
+    if (typeof expected === "bigint") {
+        // Not enough data for selector
+        if (excDataSize < 4n || excData.length < 4) {
+            return false;
+        }
+
+        const actualSelector = bigEndianBufToBigint(excData.slice(0, 4));
+
+        return expected === actualSelector;
+    }
+
+    // Specific exception bytes are expected
+    return excData.equals(expected);
+}
+
+/**
  * Helper class attached to each VM object, that contains state relevant to Foundry cheatcodes.
  */
 export class FoundryContext {
     public timeWarp: bigint | undefined = undefined;
     public rollBockNum: bigint | undefined = undefined;
     public failCalled = false;
+    private expectedRevertDesc: RevertMatch = undefined;
+
+    public clearExpectRevert(): void {
+        this.expectRevert(undefined);
+    }
+
+    public expectRevert(match: RevertMatch): void {
+        this.expectedRevertDesc = match;
+    }
+
+    public getExpectedRevert(): RevertMatch {
+        return this.expectedRevertDesc;
+    }
 
     /**
      * We keep track of the current stack of EEI objects, in order to keep track
@@ -453,6 +519,50 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             ctx.clearPranks();
 
             //console.error(`stopPrank()`);
+            return {
+                executionGasUsed: 0n,
+                returnValue: Buffer.from("", "hex")
+            };
+        }
+
+        if (selector === EXPECT_REVERT_SELECTOR01) {
+            //console.error(`vm.expectRevert();`);
+            ctx.expectRevert(true);
+            return {
+                executionGasUsed: 0n,
+                returnValue: Buffer.from("", "hex")
+            };
+        }
+
+        if (selector === EXPECT_REVERT_SELECTOR02) {
+            //console.error(`vm.expectRevert(bytes4);`);
+            if (input.data.length < 8) {
+                return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
+            }
+
+            const selector = input.data.slice(4, 8);
+            ctx.expectRevert(bigEndianBufToBigint(selector));
+
+            return {
+                executionGasUsed: 0n,
+                returnValue: Buffer.from("", "hex")
+            };
+        }
+
+        if (selector === EXPECT_REVERT_SELECTOR03) {
+            if (input.data.length < 68) {
+                return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
+            }
+
+            const len = Number(bigEndianBufToBigint(input.data.slice(36, 68)));
+
+            if (input.data.length < 68 + len) {
+                return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
+            }
+
+            const bytes = input.data.slice(68, 68 + len);
+            ctx.expectRevert(bytes);
+
             return {
                 executionGasUsed: 0n,
                 returnValue: Buffer.from("", "hex")
