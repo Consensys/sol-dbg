@@ -154,18 +154,25 @@ export class FoundryContext {
     public timeWarp: bigint | undefined = undefined;
     public rollBockNum: bigint | undefined = undefined;
     public failCalled = false;
-    private expectedRevertDesc: RevertMatch = undefined;
 
     public clearExpectRevert(): void {
         this.expectRevert(undefined);
     }
 
     public expectRevert(match: RevertMatch): void {
-        this.expectedRevertDesc = match;
+        if (this.envStack.length === 0) {
+            return undefined;
+        }
+
+        (this.getEnv() as any).expectedRevertDesc = match;
     }
 
     public getExpectedRevert(): RevertMatch {
-        return this.expectedRevertDesc;
+        if (this.envStack.length === 0) {
+            return undefined;
+        }
+
+        return (this.getEnv() as any).expectedRevertDesc;
     }
 
     /**
