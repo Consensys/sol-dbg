@@ -326,13 +326,13 @@ contract Test_expectRevert is Test {
     }
 
     function test_expectRevert_17() external returns (uint256) {
-        vm.expectRevert();  // expected to fail
+        vm.expectRevert();
         try this.notReverting5() {
             emit AssertionFailed("test_expectRevert_17@1");
+            assert(false);
             return 1;
         } catch {
             emit AssertionFailed("test_expectRevert_17@2");
-            assert(false);
         }
     }
 

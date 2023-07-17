@@ -76,22 +76,22 @@
     {
       "address": "0x384f682f4a5abefc8795cc38a340de9446dfae7a",
       "gasLimit": "0xff000",
-      "gasPrice": "0x3b9ac9f64",
-      "input": "0x4a2a2ac200000000000000000000000000000000000000000000000000000000000000",
-      "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa2",
+      "gasPrice": "0x3b9aca000",
+      "input": "0x25e93a6200000000000000000000000000000000",
+      "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
       "value": "0x0",
       "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
-      "blockDifficulty": "0x13",
+      "blockDifficulty": "0x0",
       "blockGasLimit": "0xff0000",
-      "blockNumber": "0x2",
-      "blockTime": "0x2",
+      "blockNumber": "0xbfc9",
+      "blockTime": "0x3",
       "result": {
         "kind": "last_revert"
       },
       "errorPathPrefix": "test/samples/local/foundry_expectRevert/contracts/",
       "errorString": "assert(false)",
       "errorStack": [
-        "test/expectRevert.t.sol:177:12 Test_expectRevert.test_expectRevert_7()"
+        "test/expectRevert.t.sol:154:12 Test_expectRevert.test_expectRevert_6()"
       ]
     }
   ]
