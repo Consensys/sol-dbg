@@ -26,6 +26,28 @@ import { ppStackTrace } from "../utils";
 import { ResultKind, TestCase, TestStep, VMTestRunner } from "../../src/utils";
 
 /**
+ * Find the last step in the non-internal code, before trace step i
+ */
+export function findLastNonInternalStepBeforeStepI(
+    trace: StepState[],
+    i: number
+): StepState | undefined {
+    const stack = trace[i].stack;
+
+    for (let i = stack.length - 1; i >= 0; i--) {
+        if (stack[i].callee instanceof FunctionDefinition) {
+            if (i === stack.length - 1) {
+                return trace[i];
+            }
+
+            return trace[stack[i + 1].startStep - 1];
+        }
+    }
+
+    return undefined;
+}
+
+/**
  * Find the last step in the non-internal code, that leads to the first revert
  */
 export function findLastNonInternalStepBeforeRevert(trace: StepState[]): StepState | undefined {
@@ -41,19 +63,26 @@ export function findLastNonInternalStepBeforeRevert(trace: StepState[]): StepSta
         return undefined;
     }
 
-    const stack = trace[i].stack;
+    return findLastNonInternalStepBeforeStepI(trace, i);
+}
 
-    for (let i = stack.length - 1; i >= 0; i--) {
-        if (stack[i].callee instanceof FunctionDefinition) {
-            if (i === stack.length - 1) {
-                return trace[i];
-            }
+/**
+ * Find the last step in the non-internal code, that leads to the last revert
+ */
+export function findLastNonInternalStepBeforeLastRevert(trace: StepState[]): StepState | undefined {
+    let i = trace.length - 1;
 
-            return trace[stack[i + 1].startStep - 1];
+    for (; i >= 0; i--) {
+        if (trace[i].op.opcode === 0xfd) {
+            break;
         }
     }
 
-    return undefined;
+    if (i < 0) {
+        return undefined;
+    }
+
+    return findLastNonInternalStepBeforeStepI(trace, i);
 }
 
 /**
@@ -115,6 +144,14 @@ function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {
         }
 
         case ResultKind.ValueReturned: {
+            if (result.execResult.exceptionError !== undefined) {
+                console.error(
+                    `Expected return value ${step.result.value}, instead reverted with`,
+                    result.execResult.exceptionError
+                );
+                return false;
+            }
+
             const actualResult = result.execResult.returnValue.toString("hex");
             const res = step.result.value === actualResult;
 
@@ -135,6 +172,16 @@ function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {
         }
 
         case ResultKind.Revert: {
+            const failed = result.execResult.exceptionError !== undefined;
+
+            if (!failed) {
+                console.error(`Expected a revert, but the tx step succeeded`);
+            }
+
+            return failed;
+        }
+
+        case ResultKind.LastRevert: {
             const failed = result.execResult.exceptionError !== undefined;
 
             if (!failed) {
@@ -194,6 +241,10 @@ function getStepFailTraceStep(step: TestStep, trace: StepState[]): StepState | u
         return findLastNonInternalStepBeforeRevert(trace);
     }
 
+    if (step.result.kind === "last_revert") {
+        return findLastNonInternalStepBeforeLastRevert(trace);
+    }
+
     return findFirstCallToFail(trace);
 }
 
@@ -249,6 +300,7 @@ describe(`Local tests`, async () => {
                             if (
                                 !(
                                     curStep.result.kind === ResultKind.Revert ||
+                                    curStep.result.kind === ResultKind.LastRevert ||
                                     curStep.result.kind === ResultKind.FoundryFail
                                 )
                             ) {

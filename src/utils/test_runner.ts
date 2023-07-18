@@ -46,6 +46,7 @@ export enum ResultKind {
     ContractCreated = "contract_created",
     ValueReturned = "value_returned",
     Revert = "revert",
+    LastRevert = "last_revert",
     FoundryFail = "foundry_fail"
 }
 
@@ -63,13 +64,22 @@ interface ResultRevert {
     kind: ResultKind.Revert;
 }
 
+interface ResultLastRevert {
+    kind: ResultKind.LastRevert;
+}
+
 interface ResultFoundryFail {
     kind: ResultKind.FoundryFail;
 }
 
 export interface TestStep extends BaseTestStep {
     // Expected result of the transaction
-    result: ResultContractCreated | ResultValueReturned | ResultRevert | ResultFoundryFail;
+    result:
+        | ResultContractCreated
+        | ResultValueReturned
+        | ResultRevert
+        | ResultLastRevert
+        | ResultFoundryFail;
     // Stack trace at the first error in the tx
     errorStack?: string[];
     // String in the original file in which the error location maps to

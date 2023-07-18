@@ -3,3 +3,6 @@ node_modules
 .nyc_output
 dist
 coverage
+test/samples/local/*/contracts/.fuzz.yml
+test/samples/local/*/contracts/cache
+test/samples/local/*/contracts/out
