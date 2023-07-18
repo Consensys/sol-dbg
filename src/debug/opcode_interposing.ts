@@ -318,7 +318,7 @@ function handleReturn(
         // Otherwise we match the expected revert, so return all 0s
         // @todo (dimo): This seems to break in the case where the return value is
         // of a dynamic size (e.g. array). See failing test test_expectRevert_7
-        runState.returnBuffer = Buffer.alloc(Number(32 * 10), 0);
+        runState.returnBuffer = Buffer.alloc(Number(32 * 64), 0);
         ret = 1n;
     }
 
