@@ -122,8 +122,6 @@ export function returnStateMatchesRevert(
     }
 
     // Any revert was expected. Just check that the return value is 0.
-    // @todo (dimo): Need to distinguish revert() and invalid() somehow here.
-    //       See failing test test_expectRevert_17
     if (typeof expected === "boolean") {
         return expected === (ret === 0n);
     }

@@ -91,6 +91,7 @@ contract Test_expectRevertOtherCalls is Test {
     }
 
 /*
+    // Don't support these as `fuzz forge test` command doesn't yet support linked libraries
     function test_expectRevertNested_5() external returns (uint256) {
         vm.expectRevert(); // Expected to fail
         try LibBomb.boom() returns (uint256 x) {
