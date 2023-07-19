@@ -91,7 +91,7 @@
       "errorPathPrefix": "test/samples/local/foundry_expectRevert/contracts/",
       "errorString": "assert(false)",
       "errorStack": [
-        "test/expectRevert.t.sol:197:59 Test_expectRevert.test_expectRevert_8()"
+        "test/expectRevert.t.sol:194:12 Test_expectRevert.test_expectRevert_8()"
       ]
     }
   ]

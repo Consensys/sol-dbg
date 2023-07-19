@@ -106,6 +106,8 @@ export interface FoundryPrank {
  *  - undefined - no expected revert (default value)
  */
 export type RevertMatch = Buffer | bigint | boolean | undefined;
+// ERROR_PREFIX=keccak256("Error(string)")[0:4]
+const ERROR_PREFIX = Buffer.from([8, 195, 121, 160]);
 
 /**
  * Check whether the returned value and data from the sub-context matches the
@@ -141,8 +143,23 @@ export function returnStateMatchesRevert(
         return expected === actualSelector;
     }
 
+    let actualBytes: Buffer;
+
+    // This looks like an Error(string) encoded message. Extract the inner string/bytes
+    if (excDataSize >= 4n && excData.slice(0, 4).equals(ERROR_PREFIX)) {
+        try {
+            actualBytes = Buffer.from(
+                ethABI.decodeParameters(["string"], excData.slice(4).toString("hex"))[0]
+            );
+        } catch {
+            actualBytes = excData;
+        }
+    } else {
+        actualBytes = excData;
+    }
+
     // Specific exception bytes are expected
-    return excData.equals(expected);
+    return actualBytes.equals(expected);
 }
 
 /**
