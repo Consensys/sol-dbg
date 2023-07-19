@@ -22,8 +22,7 @@ import {
     FoundryCheatcodesAddress,
     getFoundryCtx
 } from "../../src/debug/foundry_cheatcodes";
-import { ppStackTrace } from "../utils";
-import { ResultKind, TestCase, TestStep, VMTestRunner } from "../../src/utils";
+import { ResultKind, TestCase, TestStep, VMTestRunner, ppStackTrace } from "../../src/utils";
 
 /**
  * Find the last step in the non-internal code, before trace step i

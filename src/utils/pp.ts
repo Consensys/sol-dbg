@@ -31,7 +31,7 @@ import {
     SolTxDebugger,
     SourceFileInfo,
     StepState
-} from "../../src/debug";
+} from "../debug";
 
 const srcLocation = require("src-location");
 const fse = require("fs-extra");

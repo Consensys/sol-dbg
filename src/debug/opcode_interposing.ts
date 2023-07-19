@@ -316,12 +316,16 @@ function handleReturn(
         ret = 0n;
     } else {
         // Otherwise we match the expected revert, so return all 0s
-        runState.returnBuffer = Buffer.alloc(Number(32 * 64), 0);
+        runState.returnBuffer = Buffer.alloc(Number(outLength), 0);
         ret = 1n;
     }
 
     writeCallOutput(runState, outOffset, outLength);
     runState.stack.push(ret);
+
+    if (outLength === 0n) {
+        runState.returnBuffer = Buffer.alloc(32 * 128, 0);
+    }
 }
 
 function handleCreateReturn(runState: RunState, ret: bigint, expectedRevert: RevertMatch): void {
