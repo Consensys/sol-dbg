@@ -262,6 +262,12 @@ export interface SolTxDebuggerOpts {
 }
 
 /**
+ * Private map tracking VM-to-EVM mapping, used when releasing EVMs from the
+ * global listener map for foundry cheatcodes.
+ */
+const vmToEVMMap = new Map<VM, EVM>();
+
+/**
  * `SolTxDebugger` is the main debugger class. It contains a VM and a
  * corresponding Web3 provider that can be used to run transactions on that VM.
  *
@@ -621,7 +627,7 @@ export class SolTxDebugger {
         };
     }
 
-    static async getEVM(opts: EVMOpts, foundryCheatcodes: boolean): Promise<EVM> {
+    private static async getEVM(opts: EVMOpts, foundryCheatcodes: boolean): Promise<EVM> {
         const tmpEvm = await EVM.create(opts);
 
         if (!foundryCheatcodes) {
@@ -656,6 +662,23 @@ export class SolTxDebugger {
         return res;
     }
 
+    /**
+     * Releases references to the EVM stored inside VM from the
+     * `interpRunListeners` map.  This avoids memory leaks when repeatedly
+     * calling the debugger on different transactions.  Should be called once
+     * for every vm created by `SolTxDebugger.createVm` after its done being
+     * used.
+     */
+    static relaseVM(vm: VM): void {
+        const evm = vmToEVMMap.get(vm);
+
+        if (evm) {
+            interpRunListeners.delete(evm);
+        }
+
+        vmToEVMMap.delete(vm);
+    }
+
     static async createVm(
         stateManager: StateManager | undefined,
         foundryCheatcodes: boolean
@@ -681,6 +704,8 @@ export class SolTxDebugger {
             evm,
             activatePrecompiles: true
         });
+
+        vmToEVMMap.set(vm, evm);
 
         return vm;
     }
@@ -739,6 +764,8 @@ export class SolTxDebugger {
             skipNonce: true,
             skipBlockGasLimitValidation: true
         });
+
+        SolTxDebugger.relaseVM(vm);
 
         return [trace, txRes];
     }

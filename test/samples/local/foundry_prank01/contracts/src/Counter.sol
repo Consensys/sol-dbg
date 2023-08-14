@@ -11,4 +11,8 @@ contract Counter {
     function increment() public {
         number++;
     }
+
+    function getSender() public returns (address) {
+	return msg.sender;
+    }
 }
