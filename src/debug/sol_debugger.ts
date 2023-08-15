@@ -669,7 +669,7 @@ export class SolTxDebugger {
      * for every vm created by `SolTxDebugger.createVm` after its done being
      * used.
      */
-    static relaseVM(vm: VM): void {
+    static releaseVM(vm: VM): void {
         const evm = vmToEVMMap.get(vm);
 
         if (evm) {
@@ -765,7 +765,7 @@ export class SolTxDebugger {
             skipBlockGasLimitValidation: true
         });
 
-        SolTxDebugger.relaseVM(vm);
+        SolTxDebugger.releaseVM(vm);
 
         return [trace, txRes];
     }
