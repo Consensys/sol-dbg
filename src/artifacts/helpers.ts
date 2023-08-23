@@ -135,7 +135,7 @@ function getDeployedBytecodeMdInfo(
     }
 
     if (rawMd.hasOwnProperty("bzzr0")) {
-        res.bzzr0 = toHexString(rawMd.bzzr);
+        res.bzzr0 = toHexString(rawMd.bzzr0);
     }
 
     if (rawMd.hasOwnProperty("bzzr1")) {
