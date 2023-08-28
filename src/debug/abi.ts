@@ -1,26 +1,27 @@
+import { bytesToHex } from "@ethereumjs/util";
 import {
     AddressType,
     ArrayType,
-    assert,
     BoolType,
     BytesType,
     ContractDefinition,
-    DataLocation as SolDataLocation,
     EnumDefinition,
-    enumToIntType,
     FixedBytesType,
     FunctionDefinition,
     InferType,
     IntType,
     MappingType,
     PointerType,
+    DataLocation as SolDataLocation,
     StringType,
     StructDefinition,
     TupleType,
     TypeNode,
     UserDefinedType,
     UserDefinedValueTypeDefinition,
-    VariableDeclaration
+    VariableDeclaration,
+    assert,
+    enumToIntType
 } from "solc-typed-ast";
 import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
 import { DataLocationKind, DataView, cd_decodeValue } from ".";
@@ -115,7 +116,7 @@ function abiStaticTypeSize(typ: TypeNode): number {
  */
 export function decodeMethodArgs(
     callee: FunctionDefinition | VariableDeclaration,
-    data: Buffer,
+    data: Uint8Array,
     kind: DataLocationKind.Memory | DataLocationKind.CallData,
     infer: InferType,
     encoderVersion: ABIEncoderVersion
@@ -150,7 +151,7 @@ export function decodeMethodArgs(
  */
 export function buildMsgDataViews(
     callee: FunctionDefinition | VariableDeclaration,
-    data: Buffer,
+    data: Uint8Array,
     kind: DataLocationKind.Memory | DataLocationKind.CallData,
     infer: InferType,
     encoderVersion: ABIEncoderVersion
@@ -163,7 +164,7 @@ export function buildMsgDataViews(
             : infer.signatureHash(callee);
 
     assert(
-        selector === data.slice(0, 4).toString("hex"),
+        selector === bytesToHex(data.slice(0, 4)),
         `Expected selector ${selector} instead got ${data.slice(0, 4)}`
     );
 

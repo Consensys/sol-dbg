@@ -1,4 +1,4 @@
-import { Address } from "ethereumjs-util";
+import { Address } from "@ethereumjs/util";
 import {
     AddressType,
     assert,
@@ -14,9 +14,9 @@ import {
     UserDefinedValueTypeDefinition
 } from "solc-typed-ast";
 import { Stack, StackLocation } from "..";
-import { bigEndianBufToBigint, fits, wordToAddress } from "../../utils";
+import { bigEndianBytesToBigint, fits, wordToAddress } from "../../utils";
 
-function fetchStackWord(offsetFromTop: number, stack: Stack): Buffer | undefined {
+function fetchStackWord(offsetFromTop: number, stack: Stack): Uint8Array | undefined {
     return stack.length <= offsetFromTop ? undefined : stack[stack.length - offsetFromTop - 1];
 }
 
@@ -27,7 +27,7 @@ export function st_decodeInt(typ: IntType, loc: StackLocation, stack: Stack): un
         return undefined;
     }
 
-    let res = bigEndianBufToBigint(word);
+    let res = bigEndianBytesToBigint(word);
     if (typ.signed && (res & (BigInt(1) << BigInt(typ.nBits - 1))) !== BigInt(0)) {
         // Mask out any 1's above the number's size
         res = res & ((BigInt(1) << BigInt(typ.nBits)) - BigInt(1));
@@ -57,7 +57,7 @@ function st_decodeFixedBytes(
     typ: FixedBytesType,
     loc: StackLocation,
     stack: Stack
-): undefined | Buffer {
+): undefined | Uint8Array {
     const addrWord = fetchStackWord(loc.offsetFromTop, stack);
 
     if (addrWord === undefined) {
@@ -74,7 +74,7 @@ function st_decodeBool(loc: StackLocation, stack: Stack): undefined | boolean {
         return undefined;
     }
 
-    return bigEndianBufToBigint(addrWord) !== BigInt(0);
+    return bigEndianBytesToBigint(addrWord) !== BigInt(0);
 }
 
 function st_decodeEnum(def: EnumDefinition, loc: StackLocation, stack: Stack): undefined | bigint {

@@ -1,24 +1,29 @@
-import { EvmErrorResult } from "@ethereumjs/evm/dist/evm";
-import { EVMInterface, EVM, ExecResult } from "@ethereumjs/evm";
-import { PrecompileFunc, PrecompileInput } from "@ethereumjs/evm/dist/precompiles";
-import {
-    Address,
-    keccak256,
-    privateToAddress,
-    setLengthLeft,
-    setLengthRight
-} from "ethereumjs-util";
-import { bigEndianBufToBigint, bigIntToBuf } from "../utils";
+import { ERROR, EvmError } from "@ethereumjs/evm/dist/cjs/exceptions";
 import {
     Env,
     Interpreter,
     InterpreterOpts,
     InterpreterResult,
     RunState
-} from "@ethereumjs/evm/dist/interpreter";
+} from "@ethereumjs/evm/dist/cjs/interpreter";
+import {
+    Address,
+    bytesToBigInt,
+    bytesToHex,
+    concatBytes,
+    equalsBytes,
+    privateToAddress,
+    setLengthLeft,
+    setLengthRight,
+    utf8ToBytes
+} from "@ethereumjs/util";
+import { keccak256 } from "ethereum-cryptography/keccak";
 import EventEmitter from "events";
-import { ERROR, EvmError } from "@ethereumjs/evm/dist/exceptions";
 import { UnprefixedHexString } from "../artifacts";
+import { bigEndianBytesToBigint, bigIntToBytes } from "../utils";
+import { EVM, EvmErrorResult } from "@ethereumjs/evm/dist/cjs/evm";
+import { EVMInterface, ExecResult } from "@ethereumjs/evm/dist/cjs/types";
+import { PrecompileFunc, PrecompileInput } from "@ethereumjs/evm/dist/cjs/precompiles";
 
 /*
  * Hotpatch Interpreter.run so we can keep track of the runtime relationships between EEIs.
@@ -34,17 +39,20 @@ const oldRun = Interpreter.prototype.run;
 export const interpRunListeners = new Map<EVM, EventEmitter>();
 
 Interpreter.prototype.run = async function (
-    code: Buffer,
+    code: Uint8Array,
     opts?: InterpreterOpts
 ): Promise<InterpreterResult> {
     const vm = this._evm;
     const emitter = interpRunListeners.get(vm);
 
     if (emitter) emitter.emit("beforeInterpRun", this);
+
     const res = oldRun.bind(this)(code, opts);
 
     const wrappedPromise = res.then((interpRes: InterpreterResult) => {
-        if (emitter) emitter.emit("afterInterpRun", this);
+        if (emitter) {
+            emitter.emit("afterInterpRun", this);
+        }
 
         return interpRes;
     });
@@ -59,12 +67,12 @@ export const FoundryCheatcodesAddress = Address.fromString(
     "0x7109709ECfa91a80626fF3989D68f67F5b1DD12D"
 );
 
-function getSelector(signature: string): Buffer {
-    return keccak256(Buffer.from(signature, "utf-8")).slice(0, 4);
+function getSelector(signature: string): Uint8Array {
+    return keccak256(utf8ToBytes(signature)).slice(0, 4);
 }
 
 function getSelectorHex(signature: string): UnprefixedHexString {
-    return getSelector(signature).toString("hex");
+    return bytesToHex(getSelector(signature));
 }
 
 export const WARP_SELECTOR = getSelectorHex("warp(uint256)");
@@ -83,14 +91,15 @@ export const EXPECT_REVERT_SELECTOR01 = getSelectorHex("expectRevert()");
 export const EXPECT_REVERT_SELECTOR02 = getSelectorHex("expectRevert(bytes4)");
 export const EXPECT_REVERT_SELECTOR03 = getSelectorHex("expectRevert(bytes)");
 
-export const FAIL_LOC = setLengthRight(Buffer.from("failed", "utf-8"), 32).toString("hex");
-
-export const FAIL_MSG_DATA = Buffer.concat([
-    getSelector("store(address,bytes32,bytes32)"),
-    setLengthLeft(FoundryCheatcodesAddress.toBuffer(), 32),
-    setLengthRight(Buffer.from("failed", "utf-8"), 32),
-    setLengthLeft(Buffer.from([1]), 32)
-]).toString("hex");
+export const FAIL_LOC = bytesToHex(setLengthRight(utf8ToBytes("failed"), 32));
+export const FAIL_MSG_DATA = bytesToHex(
+    concatBytes(
+        getSelector("store(address,bytes32,bytes32)"),
+        setLengthLeft(FoundryCheatcodesAddress.toBytes(), 32),
+        setLengthRight(utf8ToBytes("failed"), 32),
+        setLengthLeft(Uint8Array.from([1]), 32)
+    )
+);
 
 export interface FoundryPrank {
     sender: Address;
@@ -102,12 +111,12 @@ export interface FoundryPrank {
  * A type union containing the different descriptions for "expectRevert". It could be either
  *  - boolean (true) - any revert
  *  - bigint (bytes4) - corresponds to the selector of the expected event
- *  - Buffer (bytes) - corresponds to the exact exception byte we expect
+ *  - Uint8Array (bytes) - corresponds to the exact exception byte we expect
  *  - undefined - no expected revert (default value)
  */
-export type RevertMatch = Buffer | bigint | boolean | undefined;
+export type RevertMatch = Uint8Array | bigint | boolean | undefined;
 // ERROR_PREFIX=keccak256("Error(string)")[0:4]
-const ERROR_PREFIX = Buffer.from([8, 195, 121, 160]);
+const ERROR_PREFIX = Uint8Array.from([8, 195, 121, 160]);
 
 /**
  * Check whether the returned value and data from the sub-context matches the
@@ -138,18 +147,18 @@ export function returnStateMatchesRevert(
             return false;
         }
 
-        const actualSelector = bigEndianBufToBigint(excData.slice(0, 4));
+        const actualSelector = bigEndianBytesToBigint(excData.slice(0, 4));
 
         return expected === actualSelector;
     }
 
-    let actualBytes: Buffer;
+    let actualBytes: Uint8Array;
 
     // This looks like an Error(string) encoded message. Extract the inner string/bytes
-    if (excDataSize >= 4n && excData.slice(0, 4).equals(ERROR_PREFIX)) {
+    if (excDataSize >= 4n && equalsBytes(excData.slice(0, 4), ERROR_PREFIX)) {
         try {
-            actualBytes = Buffer.from(
-                ethABI.decodeParameters(["string"], excData.slice(4).toString("hex"))[0]
+            actualBytes = Uint8Array.from(
+                ethABI.decodeParameters(["string"], bytesToHex(excData.slice(4)))[0]
             );
         } catch {
             actualBytes = excData;
@@ -159,7 +168,7 @@ export function returnStateMatchesRevert(
     }
 
     // Specific exception bytes are expected
-    return actualBytes.equals(expected);
+    return equalsBytes(actualBytes, expected);
 }
 
 /**
@@ -332,36 +341,37 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
     const precompile = async function FoundryCheatcodePrecompile(
         input: PrecompileInput
     ): Promise<ExecResult> {
-        const selector = input.data.slice(0, 4).toString("hex");
+        const selector = bytesToHex(input.data.slice(0, 4));
+
         if (selector === WARP_SELECTOR) {
             const newTime = BigInt(
-                ethABI.decodeParameters(["uint256"], input.data.slice(4).toString("hex"))[0]
+                ethABI.decodeParameters(["uint256"], bytesToHex(input.data.slice(4)))[0]
             );
 
             ctx.timeWarp = newTime;
 
             return {
                 executionGasUsed: 0n,
-                returnValue: Buffer.from("", "hex")
+                returnValue: new Uint8Array()
             };
         }
 
         if (selector === ROLL_SELECTOR) {
             const newBlockNum = BigInt(
-                ethABI.decodeParameters(["uint256"], input.data.slice(4).toString("hex"))[0]
+                ethABI.decodeParameters(["uint256"], bytesToHex(input.data.slice(4)))[0]
             );
 
             ctx.rollBockNum = newBlockNum;
 
             return {
                 executionGasUsed: 0n,
-                returnValue: Buffer.from("", "hex")
+                returnValue: new Uint8Array()
             };
         }
 
         if (selector === LOAD_SELECTOR) {
             //console.error(`load(${rawAddr}, ${rawLoc})`);
-            let value = await input._EVM.eei.getContractStorage(
+            let value = await input._EVM.stateManager.getContractStorage(
                 new Address(input.data.slice(16, 36)),
                 input.data.slice(36, 68)
             );
@@ -388,22 +398,22 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             */
 
             if (addr.equals(FoundryCheatcodesAddress)) {
-                const strLoc = loc.toString("hex");
+                const strLoc = bytesToHex(loc);
 
                 if (strLoc === FAIL_LOC) {
-                    ctx.failCalled = BigInt(value.toString("hex")) !== 0n;
+                    ctx.failCalled = bytesToBigInt(value) !== 0n;
                 } else {
                     throw new Error(
                         `NYI store to loc ${strLoc} of foundry precompile contract ${addr.toString()}`
                     );
                 }
             } else {
-                await input._EVM.eei.putContractStorage(addr, loc, value);
+                await input._EVM.stateManager.putContractStorage(addr, loc, value);
             }
 
             return {
                 executionGasUsed: 0n,
-                returnValue: Buffer.from("", "hex")
+                returnValue: new Uint8Array()
             };
         }
 
@@ -413,13 +423,13 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
 
             const sig = secp256k1.sign(digest, pk);
 
-            const r = bigIntToBuf(sig.r, 32, "big");
-            const s = bigIntToBuf(sig.s, 32, "big");
-            const v = setLengthLeft(Buffer.from([sig.recovery + 27]), 32);
+            const r = bigIntToBytes(sig.r, 32, "big");
+            const s = bigIntToBytes(sig.s, 32, "big");
+            const v = setLengthLeft(Uint8Array.from([sig.recovery + 27]), 32);
 
             return {
                 executionGasUsed: 0n,
-                returnValue: Buffer.concat([v, r, s])
+                returnValue: concatBytes(v, r, s)
             };
         }
 
@@ -435,15 +445,23 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
 
         if (selector === DEAL_SELECTOR) {
             const addr = new Address(input.data.slice(16, 36));
-            const newBalance = "0x" + input.data.slice(36, 68).toString("hex");
+            const newBalance = bytesToBigInt(input.data.slice(36, 68));
 
-            const acct = await input._EVM.eei.getAccount(addr);
-            acct.balance = BigInt(newBalance);
-            await input._EVM.eei.putAccount(addr, acct);
+            const acct = await input._EVM.stateManager.getAccount(addr);
+
+            if (acct === undefined) {
+                throw new Error(
+                    `Unable to set balance for address ${addr.toString()} - there is no account`
+                );
+            }
+
+            acct.balance = newBalance;
+
+            await input._EVM.stateManager.putAccount(addr, acct);
 
             return {
                 executionGasUsed: 0n,
-                returnValue: Buffer.from("", "hex")
+                returnValue: new Uint8Array()
             };
         }
 
@@ -462,7 +480,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             //console.error(`prank(${input.data.slice(16, 36).toString("hex")})`);
             return {
                 executionGasUsed: 0n,
-                returnValue: Buffer.from("", "hex")
+                returnValue: new Uint8Array()
             };
         }
 
@@ -487,7 +505,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             */
             return {
                 executionGasUsed: 0n,
-                returnValue: Buffer.from("", "hex")
+                returnValue: new Uint8Array()
             };
         }
 
@@ -507,7 +525,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
 
             return {
                 executionGasUsed: 0n,
-                returnValue: Buffer.from("", "hex")
+                returnValue: new Uint8Array()
             };
         }
 
@@ -533,7 +551,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
 
             return {
                 executionGasUsed: 0n,
-                returnValue: Buffer.from("", "hex")
+                returnValue: new Uint8Array()
             };
         }
 
@@ -543,7 +561,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             //console.error(`stopPrank()`);
             return {
                 executionGasUsed: 0n,
-                returnValue: Buffer.from("", "hex")
+                returnValue: new Uint8Array()
             };
         }
 
@@ -552,7 +570,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             ctx.expectRevert(true);
             return {
                 executionGasUsed: 0n,
-                returnValue: Buffer.from("", "hex")
+                returnValue: new Uint8Array()
             };
         }
 
@@ -563,11 +581,11 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             }
 
             const selector = input.data.slice(4, 8);
-            ctx.expectRevert(bigEndianBufToBigint(selector));
+            ctx.expectRevert(bigEndianBytesToBigint(selector));
 
             return {
                 executionGasUsed: 0n,
-                returnValue: Buffer.from("", "hex")
+                returnValue: new Uint8Array()
             };
         }
 
@@ -576,24 +594,25 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
                 return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
             }
 
-            const len = Number(bigEndianBufToBigint(input.data.slice(36, 68)));
+            const len = Number(bigEndianBytesToBigint(input.data.slice(36, 68)));
 
             if (input.data.length < 68 + len) {
                 return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
             }
 
             const bytes = input.data.slice(68, 68 + len);
+
             ctx.expectRevert(bytes);
 
             return {
                 executionGasUsed: 0n,
-                returnValue: Buffer.from("", "hex")
+                returnValue: new Uint8Array()
             };
         }
 
         return {
             executionGasUsed: 0n,
-            returnValue: Buffer.from("", "hex")
+            returnValue: new Uint8Array()
         };
     };
 

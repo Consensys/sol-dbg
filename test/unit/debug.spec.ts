@@ -1,5 +1,5 @@
 import { DefaultStateManager } from "@ethereumjs/statemanager";
-import { RunTxResult, VM } from "@ethereumjs/vm";
+import { RunTxResult, VM } from "@ethereumjs/vm/dist/cjs";
 import expect from "expect";
 import fse from "fs-extra";
 import { FunctionDefinition, assert } from "solc-typed-ast";
@@ -11,7 +11,7 @@ import {
     SolTxDebugger,
     SourceFileInfo,
     StepState,
-    bigEndianBufToNumber,
+    bigEndianBytesToNumber,
     getContractInfo,
     lastExternalFrame,
     lsJson,
@@ -23,6 +23,7 @@ import {
     getFoundryCtx
 } from "../../src/debug/foundry_cheatcodes";
 import { ResultKind, TestCase, TestStep, VMTestRunner, ppStackTrace } from "../../src/utils";
+import { bytesToHex } from "@ethereumjs/util";
 
 /**
  * Find the last step in the non-internal code, before trace step i
@@ -100,14 +101,14 @@ export function findFirstCallToFail(trace: StepState[]): StepState | undefined {
                 continue;
             }
 
-            const argOffset = bigEndianBufToNumber(trace[i].evmStack[stackLen - 4]);
-            const argSize = bigEndianBufToNumber(trace[i].evmStack[stackLen - 5]);
+            const argOffset = bigEndianBytesToNumber(trace[i].evmStack[stackLen - 4]);
+            const argSize = bigEndianBytesToNumber(trace[i].evmStack[stackLen - 5]);
 
             if (argSize < 4) {
                 continue;
             }
 
-            const msgData = trace[i].memory.slice(argOffset, argOffset + argSize).toString("hex");
+            const msgData = bytesToHex(trace[i].memory.slice(argOffset, argOffset + argSize));
 
             if (msgData === FAIL_MSG_DATA) {
                 break;
@@ -148,10 +149,11 @@ function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {
                     `Expected return value ${step.result.value}, instead reverted with`,
                     result.execResult.exceptionError
                 );
+
                 return false;
             }
 
-            const actualResult = result.execResult.returnValue.toString("hex");
+            const actualResult = bytesToHex(result.execResult.returnValue);
             const res = step.result.value === actualResult;
 
             if (!res) {
@@ -163,6 +165,7 @@ function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {
             const foundryCtx = getFoundryCtx(vm.evm);
 
             const foundryFailed = foundryCtx.failCalled;
+
             if (foundryFailed) {
                 console.error(`Expected a foundry fail call, but the tx step succeeded`);
             }
@@ -343,12 +346,13 @@ describe(`Local tests`, async () => {
                                 continue;
                             }
 
-                            let fileContents = sources.get(fileName as string);
+                            let fileContents = sources.get(fileName);
 
                             if (fileContents === undefined) {
                                 const actualFileName = curStep.errorPathPrefix
                                     ? curStep.errorPathPrefix + fileName
                                     : fileName;
+
                                 fileContents = fse.readFileSync(actualFileName, {
                                     encoding: "utf-8"
                                 });
@@ -356,7 +360,7 @@ describe(`Local tests`, async () => {
                                 sources.set(fileName, fileContents);
                             }
 
-                            const errStr = (fileContents as string).substring(
+                            const errStr = fileContents.substring(
                                 errorLoc.start,
                                 errorLoc.start + errorLoc.length
                             );

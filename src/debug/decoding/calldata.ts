@@ -1,4 +1,4 @@
-import { Address } from "ethereumjs-util";
+import { Address, bytesToUtf8 } from "@ethereumjs/util";
 import {
     AddressType,
     ArrayType,
@@ -24,7 +24,7 @@ import {
     isABITypeStaticSized
 } from "..";
 import {
-    bigEndianBufToBigint,
+    bigEndianBytesToBigint,
     checkAddrOoB,
     fits,
     MAX_ARR_DECODE_LIMIT,
@@ -35,7 +35,7 @@ import {
 function cd_decodeInt(
     typ: IntType,
     loc: CalldataLocation,
-    calldata: Buffer
+    calldata: Uint8Array
 ): undefined | [bigint, number] {
     const numAddr = checkAddrOoB(loc.address, calldata);
 
@@ -44,7 +44,7 @@ function cd_decodeInt(
         return undefined;
     }
 
-    let res = bigEndianBufToBigint(calldata.slice(numAddr, numAddr + 32));
+    let res = bigEndianBytesToBigint(calldata.slice(numAddr, numAddr + 32));
 
     // Convert signed negative 2's complement values
     if (typ.signed && (res & (BigInt(1) << BigInt(typ.nBits - 1))) !== BigInt(0)) {
@@ -76,7 +76,7 @@ function cd_decodeFixedBytes(
     typ: FixedBytesType,
     loc: CalldataLocation,
     calldata: Memory
-): undefined | [Buffer, number] {
+): undefined | [Uint8Array, number] {
     const numAddr = checkAddrOoB(loc.address, calldata);
 
     if (numAddr === undefined) {
@@ -95,13 +95,13 @@ function cd_decodeBool(loc: CalldataLocation, calldata: Memory): undefined | [bo
         return undefined;
     }
 
-    const res = bigEndianBufToBigint(calldata.slice(numAddr, numAddr + 32)) !== BigInt(0);
+    const res = bigEndianBytesToBigint(calldata.slice(numAddr, numAddr + 32)) !== BigInt(0);
 
     return [res, 32];
 }
 
-function cd_decodeBytes(loc: CalldataLocation, calldata: Memory): undefined | [Buffer, number] {
-    let res: Buffer | undefined = undefined;
+function cd_decodeBytes(loc: CalldataLocation, calldata: Memory): undefined | [Uint8Array, number] {
+    let res: Uint8Array | undefined = undefined;
 
     let bytesOffset = loc.address;
     let bytesSize = 0;
@@ -145,9 +145,7 @@ function cd_decodeString(loc: CalldataLocation, calldata: Memory): undefined | [
         return undefined;
     }
 
-    const str = bytes[0].toString("utf-8");
-
-    return [str, bytes[1]];
+    return [bytesToUtf8(bytes[0]), bytes[1]];
 }
 
 export function cd_decodeArrayContents(

@@ -1,4 +1,4 @@
-import { PrefixedHexString } from "ethereumjs-util";
+import { bytesToHex, hexToBytes, PrefixedHexString } from "@ethereumjs/util";
 import {
     assert,
     ASTContext,
@@ -31,16 +31,20 @@ import { HexString } from "../artifacts";
 import { OpcodeInfo } from "./opcodes";
 
 export interface IArtifactManager {
-    getContractFromDeployedBytecode(code: string | Buffer): ContractInfo | undefined;
-    getContractFromCreationBytecode(code: string | Buffer): ContractInfo | undefined;
+    getContractFromDeployedBytecode(code: string | Uint8Array): ContractInfo | undefined;
+    getContractFromCreationBytecode(code: string | Uint8Array): ContractInfo | undefined;
     getContractFromMDHash(hash: HexString): ContractInfo | undefined;
     artifacts(): ArtifactInfo[];
     contracts(): ContractInfo[];
     // TODO: Need a better way of identifying runtime contracts than (bytecode, isCreation)
-    getFileById(id: number, code: string | Buffer, isCreation: boolean): SourceFileInfo | undefined;
+    getFileById(
+        id: number,
+        code: string | Uint8Array,
+        isCreation: boolean
+    ): SourceFileInfo | undefined;
     infer(version: string): InferType;
     findMethod(
-        selector: HexString | Buffer
+        selector: HexString | Uint8Array
     ): [ContractInfo, FunctionDefinition | VariableDeclaration] | undefined;
 }
 
@@ -97,9 +101,9 @@ export interface SourceFileInfo {
  * The main assumption we make is that all non-instruction bytecode comes at the end of the
  * bytecode.
  */
-function buildOffsetToIndexMap(bytecode: Buffer | UnprefixedHexString): Map<number, number> {
+function buildOffsetToIndexMap(bytecode: Uint8Array | UnprefixedHexString): Map<number, number> {
     if (typeof bytecode === "string") {
-        bytecode = Buffer.from(bytecode, "hex");
+        bytecode = hexToBytes(bytecode);
     }
 
     const res = new Map<number, number>();
@@ -283,7 +287,7 @@ export class ArtifactManager implements IArtifactManager {
         return this._mdHashToContractInfo.get(hash);
     }
 
-    getContractFromDeployedBytecode(bytecode: string | Buffer): ContractInfo | undefined {
+    getContractFromDeployedBytecode(bytecode: string | Uint8Array): ContractInfo | undefined {
         const hash = getCodeHash(bytecode);
 
         if (hash) {
@@ -293,7 +297,9 @@ export class ArtifactManager implements IArtifactManager {
         return undefined;
     }
 
-    getContractFromCreationBytecode(creationBytecode: string | Buffer): ContractInfo | undefined {
+    getContractFromCreationBytecode(
+        creationBytecode: string | Uint8Array
+    ): ContractInfo | undefined {
         const hash = getCreationCodeHash(creationBytecode);
 
         if (hash) {
@@ -305,12 +311,12 @@ export class ArtifactManager implements IArtifactManager {
 
     getFileById(
         id: number,
-        arg: string | Buffer | ContractInfo,
+        arg: string | Uint8Array | ContractInfo,
         isCreation: boolean
     ): SourceFileInfo | undefined {
         let contractInfo: ContractInfo | undefined;
 
-        if (typeof arg === "string" || arg instanceof Buffer) {
+        if (typeof arg === "string" || arg instanceof Uint8Array) {
             contractInfo = isCreation
                 ? this.getContractFromCreationBytecode(arg)
                 : this.getContractFromDeployedBytecode(arg);
@@ -348,10 +354,10 @@ export class ArtifactManager implements IArtifactManager {
     }
 
     findMethod(
-        selector: HexString | Buffer
+        selector: HexString | Uint8Array
     ): [ContractInfo, FunctionDefinition | VariableDeclaration] | undefined {
-        if (selector instanceof Buffer) {
-            selector = selector.toString("hex");
+        if (selector instanceof Uint8Array) {
+            selector = bytesToHex(selector);
         }
 
         for (const contract of this._contracts) {

@@ -1,7 +1,7 @@
 import { Decoder } from "cbor";
 import { assert } from "solc-typed-ast";
-import { toHexString } from "..";
 import { HexString, PartialSolcOutput, UnprefixedHexString } from "./solc";
+import { bytesToHex, toBytes } from "@ethereumjs/util";
 
 interface ContractMdStruct {
     // bzzr0 hash
@@ -36,93 +36,50 @@ function getAllStringsAfterPrefix(hay: string, prefix: string, expLen: number): 
     }
 }
 
-function getAllBuffersAfterPrefix(hay: Buffer, prefix: Buffer, expLen: number): Buffer[] {
-    const res: Buffer[] = [];
-
-    let off = hay.length;
-
-    while (true) {
-        off = hay.lastIndexOf(prefix, off - 1);
-
-        if (off === -1) {
-            return res;
-        }
-
-        if (off + prefix.length + expLen >= hay.length) {
-            continue;
-        }
-
-        res.push(hay.slice(off + prefix.length, off + prefix.length + expLen));
-    }
-}
-
 const ipfsStrPrefix = "64697066735822";
-const ipfsBufPrefix = Buffer.from(ipfsStrPrefix, "hex");
 const bzzr0 = "65627a7a72305820";
-const bzzr0BufPrefix = Buffer.from(bzzr0, "hex");
 const bzzr1 = "65627a7a72315820";
-const bzzr1BufPrefix = Buffer.from(bzzr1, "hex");
 
-function getBytecodeHashHacky(bytecode: string | Buffer): ContractMdStruct | undefined {
-    if (typeof bytecode === "string") {
-        const ipfsCandidates = new Set(getAllStringsAfterPrefix(bytecode, ipfsStrPrefix, 34));
-        const bzzr0Candidates = new Set(getAllStringsAfterPrefix(bytecode, bzzr0, 32));
-        const bzzr1Candidates = new Set(getAllStringsAfterPrefix(bytecode, bzzr1, 32));
-
-        if (ipfsCandidates.size + bzzr0Candidates.size + bzzr1Candidates.size !== 1) {
-            return undefined;
-        }
-
-        if (ipfsCandidates.size === 1) {
-            return { ipfs: [...ipfsCandidates][0] };
-        } else if (bzzr0Candidates.size === 1) {
-            return { bzzr0: [...bzzr0Candidates][0] };
-        } else {
-            return { bzzr1: [...bzzr1Candidates][0] };
-        }
-    } else {
-        const ipfsCandidates = new Set(getAllBuffersAfterPrefix(bytecode, ipfsBufPrefix, 34));
-        const bzzr0Candidates = new Set(getAllBuffersAfterPrefix(bytecode, bzzr0BufPrefix, 32));
-        const bzzr1Candidates = new Set(getAllBuffersAfterPrefix(bytecode, bzzr1BufPrefix, 32));
-
-        if (ipfsCandidates.size + bzzr0Candidates.size + bzzr1Candidates.size !== 1) {
-            return undefined;
-        }
-
-        if (ipfsCandidates.size === 1) {
-            return { ipfs: "0x" + [...ipfsCandidates][0].toString("hex") };
-        } else if (bzzr0Candidates.size === 1) {
-            return { bzzr0: "0x" + [...bzzr0Candidates][0].toString("hex") };
-        } else {
-            return { bzzr1: "0x" + [...bzzr1Candidates][0].toString("hex") };
-        }
+function getBytecodeHashHacky(bytecode: string | Uint8Array): ContractMdStruct | undefined {
+    if (bytecode instanceof Uint8Array) {
+        bytecode = bytesToHex(bytecode);
     }
+
+    const ipfsCandidates = new Set(getAllStringsAfterPrefix(bytecode, ipfsStrPrefix, 34));
+    const bzzr0Candidates = new Set(getAllStringsAfterPrefix(bytecode, bzzr0, 32));
+    const bzzr1Candidates = new Set(getAllStringsAfterPrefix(bytecode, bzzr1, 32));
+
+    if (ipfsCandidates.size + bzzr0Candidates.size + bzzr1Candidates.size !== 1) {
+        return undefined;
+    }
+
+    if (ipfsCandidates.size === 1) {
+        return { ipfs: [...ipfsCandidates][0] };
+    }
+
+    if (bzzr0Candidates.size === 1) {
+        return { bzzr0: [...bzzr0Candidates][0] };
+    }
+
+    return { bzzr1: [...bzzr1Candidates][0] };
 }
 
 function getDeployedBytecodeMdInfo(
-    deployedBytecode: UnprefixedHexString | Buffer
+    deployedBytecode: UnprefixedHexString | Uint8Array
 ): ContractMdStruct {
+    if (deployedBytecode instanceof Uint8Array) {
+        deployedBytecode = bytesToHex(deployedBytecode);
+    }
+
     const len = deployedBytecode.length;
 
     let rawMd: any = {};
 
     try {
-        if (typeof deployedBytecode === "string") {
-            const off = parseInt(deployedBytecode.substring(len - 4), 16);
-            const mdHex = deployedBytecode.substring(len - 4 - off * 2, len - 4);
+        const off = parseInt(deployedBytecode.substring(len - 4), 16);
+        const mdHex = deployedBytecode.substring(len - 4 - off * 2, len - 4);
 
-            rawMd = Decoder.decodeAllSync(mdHex, { encoding: "hex" })[0];
-        } else {
-            const off = deployedBytecode.readInt16BE(deployedBytecode.length - 2);
-
-            rawMd = Decoder.decodeAllSync(
-                deployedBytecode.slice(
-                    deployedBytecode.length - 2 - off,
-                    deployedBytecode.length - 2
-                ),
-                {}
-            )[0];
-        }
+        rawMd = Decoder.decodeAllSync(mdHex, { encoding: "hex" })[0];
     } catch {
         // The contract bytecode may not have metadata, which would result in random crashes in the decoder.
         // Catch those so we don't end up crashing in the absence of metadata.
@@ -131,15 +88,15 @@ function getDeployedBytecodeMdInfo(
     const res: ContractMdStruct = {};
 
     if (rawMd.hasOwnProperty("ipfs")) {
-        res.ipfs = toHexString(rawMd.ipfs);
+        res.ipfs = bytesToHex(toBytes(rawMd.ipfs));
     }
 
     if (rawMd.hasOwnProperty("bzzr0")) {
-        res.bzzr0 = toHexString(rawMd.bzzr);
+        res.bzzr0 = bytesToHex(toBytes(rawMd.bzzr));
     }
 
     if (rawMd.hasOwnProperty("bzzr1")) {
-        res.bzzr1 = toHexString(rawMd.bzzr1);
+        res.bzzr1 = bytesToHex(toBytes(rawMd.bzzr1));
     }
 
     if (rawMd.hasOwnProperty("experimental")) {
@@ -153,7 +110,7 @@ function getDeployedBytecodeMdInfo(
     return res;
 }
 
-export function getCodeHash(deplBytecode: UnprefixedHexString | Buffer): HexString | undefined {
+export function getCodeHash(deplBytecode: UnprefixedHexString | Uint8Array): HexString | undefined {
     const md = getDeployedBytecodeMdInfo(deplBytecode);
 
     // TODO: Should we prefix the hash with the hash type? bzzr0/ipfs
@@ -173,7 +130,7 @@ export function getCodeHash(deplBytecode: UnprefixedHexString | Buffer): HexStri
 }
 
 export function getCreationCodeHash(
-    creationBytecode: UnprefixedHexString | Buffer
+    creationBytecode: UnprefixedHexString | Uint8Array
 ): HexString | undefined {
     const md = getBytecodeHashHacky(creationBytecode);
 

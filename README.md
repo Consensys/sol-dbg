@@ -25,7 +25,7 @@ The main part missing to make this a full-fledged debugger is stack-map inferenc
 
 To use the debugger you need 3 things:
 
-1. The state of the EthereumJS before the problematic transaction. This can be obtained by calling `vm.stateManager.copy()` right before its executed. For example on keeping track of this state check out the  [VMTestRunner](https://github.com/ConsenSys/sol-dbg/blob/main/test/utils/test_runner.ts#L81) class.
+1. The state of the EthereumJS before the problematic transaction. This can be obtained by calling `vm.stateManager.copy()` right before its executed. For example on keeping track of this state check out the [VMTestRunner](https://github.com/ConsenSys/sol-dbg/blob/main/test/utils/test_runner.ts#L81) class.
 
 2. The actual failing `Transaction` and the `Block` in which you wish it to be replayed. These can be built by calling(where the ... are standard JSON descriptions of the tx/block):
 
@@ -44,8 +44,9 @@ const trace = await solDbg.debugTx(tx, block, stateBefore);
 for (const step of trace) {
     console.log(`Stack trace at pc ${step.pc}:`);
 
-    for(const frame of step) {
-        const funName = frame.callee instanceof FunctionDefinition ? frame.callee.name : "<unknown-function>";
+    for (const frame of step) {
+        const funName =
+            frame.callee instanceof FunctionDefinition ? frame.callee.name : "<unknown-function>";
 
         console.log(`${step.address.toString()}:${funName}`);
     }
@@ -60,7 +61,7 @@ The type of each step of the trace is `StepState`, and contains the following in
 export interface StepState {
     // The raw EVM stack
     evmStack: Stack;
-    // The current state of the memory (as a Buffer)
+    // The current state of the memory (as a Uint8Array)
     memory: Memory;
     // The current storage
     storage: Storage;
@@ -81,7 +82,7 @@ export interface StepState {
     // Address of the CODE which is currently executing (different from address in the case of DELEGATECALL)
     codeAddress: Address;
     // The code that is currently executing
-    code: Buffer;
+    code: Uint8Array;
     // Hash of the metadata embedded by the Solidity compiler in the end of the bytecode
     codeHash: HexString;
     // The solidity-level stack trace
