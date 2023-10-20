@@ -1,3 +1,5 @@
+import { ERROR } from "@ethereumjs/evm/dist/exceptions";
+import { RunState } from "@ethereumjs/evm/dist/interpreter";
 import {
     OpHandler,
     Opcode,
@@ -6,19 +8,16 @@ import {
     writeCallOutput
 } from "@ethereumjs/evm/dist/opcodes";
 import { AsyncDynamicGasHandler, SyncDynamicGasHandler } from "@ethereumjs/evm/dist/opcodes/gas";
-import { bigIntToBuffer } from "@ethereumjs/util";
 import { AddOpcode } from "@ethereumjs/evm/dist/types";
+import { bigIntToBuffer } from "@ethereumjs/util";
+import { Address, setLengthLeft } from "ethereumjs-util";
+import { bigEndianBufToBigint } from "../utils";
 import {
     FoundryCheatcodesAddress,
     FoundryContext,
     RevertMatch,
     returnStateMatchesRevert
 } from "./foundry_cheatcodes";
-import { RunState } from "@ethereumjs/evm/dist/interpreter";
-import { Address, setLengthLeft } from "ethereumjs-util";
-import { Common } from "@ethereumjs/common";
-import { bigEndianBufToBigint } from "../utils";
-import { ERROR } from "@ethereumjs/evm/dist/exceptions";
 
 function interopseOnOp(code: number, opcodes: any, handler: OpHandler): AddOpcode {
     const originalOp: Opcode = opcodes.opcodes.get(code);
@@ -39,7 +38,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
     const foundryOpInterposing = new Map<number, OpHandler>([
         [
             0x42,
-            (runState: RunState, common: Common): void => {
+            (runState: RunState): void => {
                 const time =
                     foundryCtx.timeWarp === undefined
                         ? runState.interpreter.getBlockTimestamp()
@@ -50,7 +49,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
         ],
         [
             0x43,
-            (runState: RunState, common: Common): void => {
+            (runState: RunState): void => {
                 const number =
                     foundryCtx.rollBockNum === undefined
                         ? runState.interpreter.getBlockNumber()
@@ -61,7 +60,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
         ],
         [
             0x32,
-            (runState: RunState, common: Common): void => {
+            (runState: RunState): void => {
                 const [, prankOrigin] = foundryCtx.matchPrank(true);
 
                 const origin =
@@ -74,7 +73,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
         ],
         [
             0x33,
-            (runState: RunState, common: Common): void => {
+            (runState: RunState): void => {
                 const [prankSender] = foundryCtx.matchPrank(false);
 
                 const caller =
@@ -154,7 +153,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
         [
             0xf1,
             async function (runState: RunState) {
-                const [_currentGasLimit, toAddr, value, inOffset, inLength, outOffset, outLength] =
+                const [, toAddr, value, inOffset, inLength, outOffset, outLength] =
                     runState.stack.popN(7);
 
                 const toAddress = new Address(addressToBuffer(toAddr));
@@ -190,7 +189,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
         [
             0xf2,
             async function (runState: RunState) {
-                const [_currentGasLimit, toAddr, value, inOffset, inLength, outOffset, outLength] =
+                const [, toAddr, value, inOffset, inLength, outOffset, outLength] =
                     runState.stack.popN(7);
                 const toAddress = new Address(addressToBuffer(toAddr));
                 const expectedRevert = getExpectedRevert(foundryCtx, toAddress);
@@ -213,8 +212,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
             0xf4,
             async function (runState) {
                 const value = runState.interpreter.getCallValue();
-                const [_currentGasLimit, toAddr, inOffset, inLength, outOffset, outLength] =
-                    runState.stack.popN(6);
+                const [, toAddr, inOffset, inLength, outOffset, outLength] = runState.stack.popN(6);
                 const toAddress = new Address(addressToBuffer(toAddr));
                 const expectedRevert = getExpectedRevert(foundryCtx, toAddress);
 
@@ -241,8 +239,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
             0xfa,
             async function (runState) {
                 const value = BigInt(0);
-                const [_currentGasLimit, toAddr, inOffset, inLength, outOffset, outLength] =
-                    runState.stack.popN(6);
+                const [, toAddr, inOffset, inLength, outOffset, outLength] = runState.stack.popN(6);
                 const toAddress = new Address(addressToBuffer(toAddr));
                 const expectedRevert = getExpectedRevert(foundryCtx, toAddress);
 
