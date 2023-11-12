@@ -21,11 +21,11 @@ Currently the debugger gets a trace from the EthereumJS VM, and for each step of
 
 The main part missing to make this a full-fledged debugger is stack-map inference and computing the values of locals.
 
-# Quckstart
+# Quickstart
 
 To use the debugger you need 3 things:
 
-1. The state of the EthereumJS before the problematic transaction. This can be obtained by calling `vm.stateManager.copy()` right before its executed. For example on keeping track of this state check out the  [VMTestRunner](https://github.com/ConsenSys/sol-dbg/blob/main/test/utils/test_runner.ts#L81) class.
+1. The state of the EthereumJS before the problematic transaction. This can be obtained by calling `vm.stateManager.copy()` right before it's executed. For example on keeping track of this state check out the  [VMTestRunner](https://github.com/ConsenSys/sol-dbg/blob/main/test/utils/test_runner.ts#L81) class.
 
 2. The actual failing `Transaction` and the `Block` in which you wish it to be replayed. These can be built by calling(where the ... are standard JSON descriptions of the tx/block):
 
@@ -92,7 +92,7 @@ export interface StepState {
     astNode: ASTNode | undefined;
     // If an event is emitted by this instruction, the event payload and topics
     emittedEvent: EventDesc | undefined;
-    // General information about the given contract (if we have a compiler artifact for it). May contain name, code , sourcemaps, ASTs, metadata /// hash, etc.
+    // General information about the given contract (if we have a compiler artifact for it). May contain name, code, sourcemaps, ASTs, metadata /// hash, etc.
     contractInfo: ContractInfo | undefined;
 }
 ```
@@ -101,8 +101,8 @@ export interface StepState {
 
 A stack trace is a list of stack frames. There are 2 kinds of stack frames - an `ExternalFrame` and an `InternalCallFrame`. As the name suggests, an `ExternalCall` frame corresponds to an external call, and an `InternalCallFrame` corresponds to a call for an internal function in a contract.
 
-All frames have an optional `callee` field, which is either an `ASTNode` or `undefined`. `callee` is `undefined` when we don't have enough debugging information to determine the target of this call. Otherwise its the `ASTNode` that corresponds to this call. This is usually a `FunctionDefinition`, but can sometimes be other nodes. For example when calling a public state variable getter the `callee` is a `VariableDeclaration`. When calling an implicit constructor of a contract, the `callee` will be a `ContractDefinition`. Also we are planning on adding support for recognizing compiler-generated functions, in which case the `callee` will be a `YulFunctionDefinition`.
+All frames have an optional `callee` field, which is either an `ASTNode` or `undefined`. `callee` is `undefined` when we don't have enough debugging information to determine the target of this call. Otherwise it's the `ASTNode` that corresponds to this call. This is usually a `FunctionDefinition`, but can sometimes be other nodes. For example when calling a public state variable getter the `callee` is a `VariableDeclaration`. When calling an implicit constructor of a contract, the `callee` will be a `ContractDefinition`. Also we are planning on adding support for recognizing compiler-generated functions, in which case the `callee` will be a `YulFunctionDefinition`.
 
 All frames have an optional `arguments` field, with any decoded Solidity-level arguments. Note that the debugger will do its best to decode as many arguments as possible, and will attempt to decode an argument even if some other arguments fail. Arguments decoding may fail due to missing debugging information, in which case either the whole `arguments` array, or some entries in it may be undefined.
 
-Finally note that for a given external call `Contract.Function()` we will have both an `ExternalFrame` for `Contract.Function()` and an internal frame for `Contract.Function()` (if we have enough debug info). Its up to the users of this library to filter out those duplicates.
+Finally note that for a given external call `Contract.Function()` we will have both an `ExternalFrame` for `Contract.Function()` and an internal frame for `Contract.Function()` (if we have enough debug info). It's up to the users of this library to filter out those duplicates.
