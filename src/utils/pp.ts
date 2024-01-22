@@ -301,7 +301,7 @@ export function printStepSourceString(
      * @todo It is worth fixing as we refer to a file contents as string,
      * while compiler refer to it as bytes.
      *
-     * This may cause issues whe file contains multibyte charactes.
+     * This may cause issues when file contains multibyte charactes.
      * It worth to use `Buffer` or `Uint8Array` instead.
      */
     return (fileContents as string).substring(errorLoc.start, errorLoc.start + errorLoc.length);
