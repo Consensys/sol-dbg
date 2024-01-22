@@ -247,7 +247,7 @@ function getStepFailTraceStep(step: TestStep, trace: StepState[]): StepState | u
     return findFirstCallToFail(trace);
 }
 
-describe(`Local tests`, async () => {
+describe("Local tests", () => {
     for (const sample of fse.readdirSync("test/samples/local")) {
         describe(`Sample ${sample}`, () => {
             let artifacts: PartialSolcOutput[] = [];
@@ -255,7 +255,7 @@ describe(`Local tests`, async () => {
 
             const sources = new Map<string, string>();
 
-            before(() => {
+            beforeAll(() => {
                 artifacts = lsJson(`test/samples/local/${sample}/artifacts`).map((name) =>
                     fse.readJsonSync(name)
                 );
@@ -264,12 +264,12 @@ describe(`Local tests`, async () => {
             });
 
             for (const txFile of lsJson(`test/samples/local/${sample}/txs`)) {
-                describe(`Tx ${txFile}`, async () => {
+                describe(`Tx ${txFile}`, () => {
                     let solDbg: SolTxDebugger;
                     let runner: VMTestRunner;
                     let testJSON: TestCase;
 
-                    before(async () => {
+                    beforeAll(async () => {
                         solDbg = new SolTxDebugger(artifactManager, {
                             foundryCheatcodes: true,
                             strict: false
@@ -349,6 +349,7 @@ describe(`Local tests`, async () => {
                                 const actualFileName = curStep.errorPathPrefix
                                     ? curStep.errorPathPrefix + fileName
                                     : fileName;
+
                                 fileContents = fse.readFileSync(actualFileName, {
                                     encoding: "utf-8"
                                 });
