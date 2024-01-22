@@ -75,11 +75,13 @@ function getBytecodeHashHacky(bytecode: string | Buffer): ContractMdStruct | und
 
         if (ipfsCandidates.size === 1) {
             return { ipfs: [...ipfsCandidates][0] };
-        } else if (bzzr0Candidates.size === 1) {
-            return { bzzr0: [...bzzr0Candidates][0] };
-        } else {
-            return { bzzr1: [...bzzr1Candidates][0] };
         }
+
+        if (bzzr0Candidates.size === 1) {
+            return { bzzr0: [...bzzr0Candidates][0] };
+        }
+
+        return { bzzr1: [...bzzr1Candidates][0] };
     } else {
         const ipfsCandidates = new Set(getAllBuffersAfterPrefix(bytecode, ipfsBufPrefix, 34));
         const bzzr0Candidates = new Set(getAllBuffersAfterPrefix(bytecode, bzzr0BufPrefix, 32));
@@ -91,11 +93,13 @@ function getBytecodeHashHacky(bytecode: string | Buffer): ContractMdStruct | und
 
         if (ipfsCandidates.size === 1) {
             return { ipfs: "0x" + [...ipfsCandidates][0].toString("hex") };
-        } else if (bzzr0Candidates.size === 1) {
-            return { bzzr0: "0x" + [...bzzr0Candidates][0].toString("hex") };
-        } else {
-            return { bzzr1: "0x" + [...bzzr1Candidates][0].toString("hex") };
         }
+
+        if (bzzr0Candidates.size === 1) {
+            return { bzzr0: "0x" + [...bzzr0Candidates][0].toString("hex") };
+        }
+
+        return { bzzr1: "0x" + [...bzzr1Candidates][0].toString("hex") };
     }
 }
 

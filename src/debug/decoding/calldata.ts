@@ -296,8 +296,8 @@ function cd_decodeTuple(
             origElementTs === undefined
                 ? undefined
                 : origElementTs instanceof TypeNode
-                ? origElementTs
-                : origElementTs[i];
+                  ? origElementTs
+                  : origElementTs[i];
 
         assert(fieldT !== null, ``);
         const decodeRes = cd_decodeValue(

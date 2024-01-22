@@ -289,6 +289,7 @@ export function printStepSourceString(
 
     if (fileContents === undefined) {
         const actualFileName = prefix ? prefix + fileName : fileName;
+
         fileContents = fse.readFileSync(actualFileName, {
             encoding: "utf-8"
         }) as string;
@@ -296,6 +297,13 @@ export function printStepSourceString(
         sources.set(fileName, fileContents);
     }
 
+    /**
+     * @todo It is worth fixing as we refer to a file contents as string,
+     * while compiler refer to it as bytes.
+     *
+     * This may cause issues whe file contains multibyte charactes.
+     * It worth to use `Buffer` or `Uint8Array` instead.
+     */
     return (fileContents as string).substring(errorLoc.start, errorLoc.start + errorLoc.length);
 }
 
@@ -313,6 +321,7 @@ export function debugDumpTrace(
             (step.op.mnemonic === "JUMP" || step.op.mnemonic === "JUMPI") && step.src
                 ? step.src.jump
                 : "";
+
         const srcString = printStepSourceString(
             step,
             lastExternalFrame(step.stack),
@@ -330,8 +339,9 @@ export function debugDumpTrace(
 }
 
 export function ppStep(step: StepState): string {
-    let contractId: string;
     const addrStr = `${step.address.toString().slice(36)}`;
+
+    let contractId: string;
 
     if (step.contractInfo) {
         contractId = `${step.contractInfo.contractName}@${addrStr}`;
@@ -340,13 +350,16 @@ export function ppStep(step: StepState): string {
     } else {
         contractId = `unknown@${addrStr}`;
     }
+
     const immStr = step.op.immediates
         .map((imm) => step.code.slice(step.pc + 1, step.pc + 1 + imm.length).toString("hex"))
         .join(" ");
+
     const stackStr = step.evmStack
         .slice(step.evmStack.length - step.op.nPop, step.evmStack.length)
         .map((v) => v.toString("hex"))
         .join(", ");
+
     return `${contractId}# ${step.pc}: ${step.op.mnemonic}(${step.op.opcode.toString(
         16
     )}) ${immStr} [${stackStr}]`;
