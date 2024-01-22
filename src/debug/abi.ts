@@ -65,7 +65,7 @@ export function changeToLocation(typ: TypeNode, newLoc: SolDataLocation): TypeNo
 
 /**
  * Return the static size that the type `typ` will take in the standard ABI encoding of
- * argumetns.
+ * arguments.
  */
 function abiStaticTypeSize(typ: TypeNode): number {
     if (
@@ -108,7 +108,7 @@ function abiStaticTypeSize(typ: TypeNode): number {
 
 /**
  * Given a callee AST Node (FunctionDefinition or VariableDeclaration
- * correspondong to a getter), some msg `data`, that lives in location
+ * corresponding to a getter), some msg `data`, that lives in location
  * determined by `kind`, a type inference class as well as an `encoderVersion`
  * try and decode the function arguments for that particular callee from the
  * data.
