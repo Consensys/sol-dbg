@@ -11,7 +11,7 @@ import {
     SolTxDebugger,
     SourceFileInfo,
     StepState,
-    bigEndianBufToNumber,
+    bigEndianBytesToNumber,
     getContractInfo,
     lastExternalFrame,
     lsJson,
@@ -22,7 +22,14 @@ import {
     FoundryCheatcodesAddress,
     getFoundryCtx
 } from "../../src/debug/foundry_cheatcodes";
-import { ResultKind, TestCase, TestStep, VMTestRunner, ppStackTrace } from "../../src/utils";
+import {
+    ResultKind,
+    TestCase,
+    TestStep,
+    VMTestRunner,
+    ppStackTrace,
+    toUnprefixedHexString
+} from "../../src/utils";
 
 /**
  * Find the last step in the non-internal code, before trace step i
@@ -100,14 +107,16 @@ export function findFirstCallToFail(trace: StepState[]): StepState | undefined {
                 continue;
             }
 
-            const argOffset = bigEndianBufToNumber(trace[i].evmStack[stackLen - 4]);
-            const argSize = bigEndianBufToNumber(trace[i].evmStack[stackLen - 5]);
+            const argOffset = bigEndianBytesToNumber(trace[i].evmStack[stackLen - 4]);
+            const argSize = bigEndianBytesToNumber(trace[i].evmStack[stackLen - 5]);
 
             if (argSize < 4) {
                 continue;
             }
 
-            const msgData = trace[i].memory.slice(argOffset, argOffset + argSize).toString("hex");
+            const msgData = toUnprefixedHexString(
+                trace[i].memory.slice(argOffset, argOffset + argSize)
+            );
 
             if (msgData === FAIL_MSG_DATA) {
                 break;
@@ -151,7 +160,7 @@ function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {
                 return false;
             }
 
-            const actualResult = result.execResult.returnValue.toString("hex");
+            const actualResult = toUnprefixedHexString(result.execResult.returnValue);
             const res = step.result.value === actualResult;
 
             if (!res) {

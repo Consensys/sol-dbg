@@ -24,7 +24,7 @@ import {
 } from "solc-typed-ast";
 import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
 import { DataLocationKind, DataView, cd_decodeValue } from ".";
-import { getFunctionSelector } from "../utils";
+import { getFunctionSelector, toUnprefixedHexString } from "../utils";
 
 export function changeToLocation(typ: TypeNode, newLoc: SolDataLocation): TypeNode {
     if (typ instanceof PointerType) {
@@ -150,7 +150,7 @@ export function decodeMethodArgs(
  */
 export function buildMsgDataViews(
     callee: FunctionDefinition | VariableDeclaration,
-    data: Buffer,
+    data: Uint8Array,
     kind: DataLocationKind.Memory | DataLocationKind.CallData,
     infer: InferType,
     encoderVersion: ABIEncoderVersion
@@ -163,7 +163,7 @@ export function buildMsgDataViews(
             : infer.signatureHash(callee);
 
     assert(
-        selector === data.slice(0, 4).toString("hex"),
+        selector === toUnprefixedHexString(data.slice(0, 4)),
         `Expected selector ${selector} instead got ${data.slice(0, 4)}`
     );
 
