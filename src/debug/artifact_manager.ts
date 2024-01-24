@@ -1,4 +1,4 @@
-import { PrefixedHexString } from "ethereumjs-util";
+import { PrefixedHexString } from "@ethereumjs/util";
 import {
     assert,
     ASTContext,

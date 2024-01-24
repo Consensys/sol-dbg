@@ -1,29 +1,29 @@
-import { Address } from "ethereumjs-util";
+import { Address, bytesToUtf8 } from "@ethereumjs/util";
 import {
     AddressType,
     ArrayType,
-    assert,
     BoolType,
     BytesType,
     ContractDefinition,
-    DataLocation as SolDataLocation,
     EnumDefinition,
-    enumToIntType,
     FixedBytesType,
     InferType,
     IntType,
     PointerType,
-    specializeType,
+    DataLocation as SolDataLocation,
     StringType,
     StructDefinition,
     TupleType,
     TypeName,
     TypeNode,
     UserDefinedType,
-    UserDefinedValueTypeDefinition
+    UserDefinedValueTypeDefinition,
+    assert,
+    enumToIntType,
+    specializeType
 } from "solc-typed-ast";
 import { DataLocation, DataLocationKind, LinearMemoryLocation, Memory } from "..";
-import { bigEndianBufToBigint, checkAddrOoB, fits, MAX_ARR_DECODE_LIMIT, uint256 } from "../..";
+import { MAX_ARR_DECODE_LIMIT, bigEndianBytesToBigint, checkAddrOoB, fits, uint256 } from "../..";
 
 function mem_decodeInt(
     typ: IntType,
@@ -37,7 +37,7 @@ function mem_decodeInt(
         return undefined;
     }
 
-    let res = bigEndianBufToBigint(memory.slice(numAddr, numAddr + 32));
+    let res = bigEndianBytesToBigint(memory.slice(numAddr, numAddr + 32));
 
     // Convert signed negative 2's complement values
     if (typ.signed && (res & (BigInt(1) << BigInt(typ.nBits - 1))) !== BigInt(0)) {
@@ -71,7 +71,7 @@ function mem_decodeFixedBytes(
     typ: FixedBytesType,
     loc: LinearMemoryLocation,
     memory: Memory
-): undefined | [Buffer, number] {
+): undefined | [Uint8Array, number] {
     const numAddr = checkAddrOoB(loc.address, memory);
 
     if (numAddr === undefined) {
@@ -88,7 +88,7 @@ function mem_decodeBool(loc: LinearMemoryLocation, memory: Memory): undefined | 
         return undefined;
     }
 
-    const res = bigEndianBufToBigint(memory.slice(numAddr, numAddr + 32)) !== BigInt(0);
+    const res = bigEndianBytesToBigint(memory.slice(numAddr, numAddr + 32)) !== BigInt(0);
 
     return [res, 32];
 }
@@ -103,7 +103,10 @@ function mem_decodeEnum(
     return mem_decodeInt(intType, loc, memory);
 }
 
-function mem_decodeBytes(loc: LinearMemoryLocation, memory: Memory): undefined | [Buffer, number] {
+function mem_decodeBytes(
+    loc: LinearMemoryLocation,
+    memory: Memory
+): undefined | [Uint8Array, number] {
     let bytesOffset = loc.address;
     let bytesSize = 0;
 
@@ -145,7 +148,7 @@ function mem_decodeString(loc: LinearMemoryLocation, memory: Memory): undefined 
         return undefined;
     }
 
-    const str = bytes[0].toString("utf-8");
+    const str = bytesToUtf8(bytes[0]);
 
     return [str, bytes[1]];
 }

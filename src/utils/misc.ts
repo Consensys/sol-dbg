@@ -1,18 +1,19 @@
-import { Transaction, TxData } from "@ethereumjs/tx";
-import { Address, BN } from "ethereumjs-util";
+import { Common } from "@ethereumjs/common";
+import { TransactionFactory, TypedTransaction, TypedTxData } from "@ethereumjs/tx";
+import { Address } from "@ethereumjs/util";
+import { bytesToHex } from "ethereum-cryptography/utils.js";
 import fse from "fs-extra";
 import { join } from "path";
 import {
-    assert,
     ContractDefinition,
     FunctionDefinition,
     InferType,
     IntType,
-    SourceUnit
+    SourceUnit,
+    assert
 } from "solc-typed-ast";
 import { HexString, UnprefixedHexString } from "..";
 import { DataLocation, DataLocationKind, DataView, Stack, Storage } from "../debug/sol_debugger";
-import { Common } from "@ethereumjs/common";
 
 export const ZERO_ADDRESS_STRING: HexString = "0x0000000000000000000000000000000000000000";
 export const ZERO_ADDRESS = Address.fromString(ZERO_ADDRESS_STRING);
@@ -20,11 +21,14 @@ export const ZERO_ADDRESS = Address.fromString(ZERO_ADDRESS_STRING);
 export const uint256 = new IntType(256, false);
 export const MAX_ARR_DECODE_LIMIT = BigInt(1000);
 
-export function toHexString(n: number | bigint | Uint8Array, padding = 0): HexString {
+export function toUnprefixedHexString(
+    n: number | bigint | Uint8Array,
+    padding = 0
+): UnprefixedHexString {
     let hex: string;
 
     if (n instanceof Uint8Array) {
-        hex = Buffer.from(n).toString("hex");
+        hex = bytesToHex(n);
     } else {
         hex = n.toString(16);
     }
@@ -33,15 +37,19 @@ export function toHexString(n: number | bigint | Uint8Array, padding = 0): HexSt
         hex = hex.padStart(padding, "0");
     }
 
-    return "0x" + hex;
+    return hex;
 }
 
-export function bigIntToBuf(
+export function toHexString(n: number | bigint | Uint8Array, padding = 0): HexString {
+    return "0x" + toUnprefixedHexString(n, padding);
+}
+
+export function bigIntToBytes(
     n: bigint,
     size: number,
     endianness: "big" | "little" = "little"
-): Buffer {
-    const res = Buffer.alloc(size, 0);
+): Uint8Array {
+    const res = new Uint8Array(size);
 
     let i = endianness === "big" ? size - 1 : 0;
 
@@ -63,23 +71,39 @@ export function hexStrToBuf32(v: UnprefixedHexString): Buffer {
     return Buffer.from(v.padStart(64, "0"), "hex");
 }
 
-export function padStart(buf: Buffer, toSize: number, filler: number): Buffer {
+export function mergeBytes(...bytes: Uint8Array[]): Uint8Array {
+    const totalSize = bytes.reduce((acc, e) => acc + e.length, 0);
+    const merged = new Uint8Array(totalSize);
+
+    bytes.forEach((array, i, arrays) => {
+        const offset = arrays.slice(0, i).reduce((acc, e) => acc + e.length, 0);
+
+        merged.set(array, offset);
+    });
+
+    return merged;
+}
+
+export function padStart(buf: Uint8Array, toSize: number): Uint8Array {
     if (buf.length >= toSize) {
         return buf;
     }
 
-    const res = Buffer.alloc(toSize, filler);
+    const res = new Uint8Array(toSize);
 
     for (let i = toSize - buf.length, j = 0; i < toSize; i++, j++) {
         res[i] = buf[j];
     }
-
     return res;
 }
 
-export function makeFakeTransaction(txData: TxData, from: string, common: Common): Transaction {
+export function makeFakeTransaction(
+    txData: TypedTxData,
+    from: string,
+    common: Common
+): TypedTransaction {
     const fromAddr = Address.fromString(from);
-    const tx = new Transaction(txData, { common, freeze: false });
+    const tx = TransactionFactory.fromTxData(txData, { common, freeze: false });
 
     /**
      *  Intentionally override
@@ -185,14 +209,14 @@ export function ppStorage(storage: Storage): string {
     const data: { [key: UnprefixedHexString]: UnprefixedHexString } = {};
 
     for (const [k, v] of storage.entries()) {
-        data[k.toString(16)] = v.toString("hex");
+        data[k.toString(16)] = toUnprefixedHexString(v);
     }
 
     return JSON.stringify(data, undefined, 4) + "\n";
 }
 
 export function ppEvmStack(stack: Stack): string {
-    return stack.map((frame) => frame.toString("hex")).join("\n");
+    return stack.map((frame) => toUnprefixedHexString(frame)).join("\n");
 }
 
 /**
@@ -200,7 +224,7 @@ export function ppEvmStack(stack: Stack): string {
  * Since `offset` may be a bigint we must check that it can be cast to Number without
  * loss of precision and afterwards, whether it fits into the buf.
  */
-export function checkAddrOoB(offset: bigint | number, buf: Buffer): number | undefined {
+export function checkAddrOoB(offset: bigint | number, buf: Uint8Array): number | undefined {
     let numOff: number;
 
     if (typeof offset === "bigint") {
@@ -222,7 +246,7 @@ export function checkAddrOoB(offset: bigint | number, buf: Buffer): number | und
     return numOff;
 }
 
-export function wordToAddress(word: Buffer): Address {
+export function wordToAddress(word: Uint8Array): Address {
     return new Address(word.slice(12));
 }
 
@@ -231,12 +255,12 @@ export const LOWER8_MASK = (BigInt(1) << BigInt(8)) - BigInt(1);
 /**
  * Convert a big-endian 2's complement encoding to a bigint
  */
-export function bigEndianBufToBigint(buf: Buffer): bigint {
+export function bigEndianBytesToBigint(bytes: Uint8Array): bigint {
     let res = BigInt(0);
 
-    for (let i = 0; i < buf.length; i++) {
+    for (let i = 0; i < bytes.length; i++) {
         res = res << BigInt(8);
-        res += BigInt(buf[i]);
+        res += BigInt(bytes[i]);
     }
 
     return res;
@@ -245,8 +269,9 @@ export function bigEndianBufToBigint(buf: Buffer): bigint {
 /**
  * Convert a big-endian 2's complement encoding to a number. Throws an error if the value doesn't fit.
  */
-export function bigEndianBufToNumber(buf: Buffer): number {
-    const bigintRes = bigEndianBufToBigint(buf);
+export function bigEndianBytesToNumber(bytes: Uint8Array): number {
+    const bigintRes = bigEndianBytesToBigint(bytes);
+
     assert(
         bigintRes >= BigInt(Number.MIN_SAFE_INTEGER) &&
             bigintRes <= BigInt(Number.MAX_SAFE_INTEGER),
@@ -254,10 +279,6 @@ export function bigEndianBufToNumber(buf: Buffer): number {
     );
 
     return Number(bigintRes);
-}
-
-export function bnToBigInt(n: BN): bigint {
-    return BigInt("0x" + n.toString(16));
 }
 
 export function stripOx(s: HexString): UnprefixedHexString {

@@ -1,4 +1,4 @@
-import { Address } from "ethereumjs-util";
+import { Address } from "@ethereumjs/util";
 import {
     AddressType,
     ArrayType,
@@ -32,6 +32,7 @@ import {
     SourceFileInfo,
     StepState
 } from "../debug";
+import { toUnprefixedHexString } from "./misc";
 
 const srcLocation = require("src-location");
 const fse = require("fs-extra");
@@ -352,12 +353,12 @@ export function ppStep(step: StepState): string {
     }
 
     const immStr = step.op.immediates
-        .map((imm) => step.code.slice(step.pc + 1, step.pc + 1 + imm.length).toString("hex"))
+        .map((imm) => toUnprefixedHexString(step.code.slice(step.pc + 1, step.pc + 1 + imm.length)))
         .join(" ");
 
     const stackStr = step.evmStack
         .slice(step.evmStack.length - step.op.nPop, step.evmStack.length)
-        .map((v) => v.toString("hex"))
+        .map((v) => toUnprefixedHexString(v))
         .join(", ");
 
     return `${contractId}# ${step.pc}: ${step.op.mnemonic}(${step.op.opcode.toString(
