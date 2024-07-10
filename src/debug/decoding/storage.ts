@@ -1,39 +1,40 @@
-import { Address, keccak256 } from "ethereumjs-util";
+import { Address, bytesToUtf8 } from "@ethereumjs/util/dist/cjs";
+import { keccak256 } from "ethereum-cryptography/keccak.js";
 import {
     AddressType,
     ArrayType,
-    assert,
     BoolType,
     BytesType,
     ContractDefinition,
-    DataLocation as SolDataLocation,
     EnumDefinition,
-    enumToIntType,
     FixedBytesType,
     InferType,
     IntType,
     MappingType,
     PointerType,
+    DataLocation as SolDataLocation,
     StringType,
     StructDefinition,
     TypeNode,
     UserDefinedType,
-    UserDefinedValueTypeDefinition
+    UserDefinedValueTypeDefinition,
+    assert,
+    enumToIntType
 } from "solc-typed-ast";
-import { changeToLocation, Storage, StorageLocation } from "..";
-import { bigEndianBufToBigint, bigIntToBuf, fits, MAX_ARR_DECODE_LIMIT, uint256 } from "../..";
+import { Storage, StorageLocation, changeToLocation } from "..";
+import { MAX_ARR_DECODE_LIMIT, bigEndianBufToBigint, bigIntToBuf, fits, uint256 } from "../..";
 
 /**
  * Helper to fetch the word residing at key `key` from `storage`.  Note that
  * this always succeeds as all uninitialized values in storage are defined to
  * contain 0.
  */
-function fetchWord(key: bigint, storage: Storage): Buffer {
+function fetchWord(key: bigint, storage: Storage): Uint8Array {
     const keyHash = bigEndianBufToBigint(keccak256(bigIntToBuf(key, 32, "big")));
     const res = storage.get(keyHash);
 
     if (res === undefined) {
-        return Buffer.alloc(32, 0);
+        return new Uint8Array(32);
     }
 
     return res;
@@ -49,9 +50,9 @@ function fetchBytes(
     offInWord: number,
     numBytes: number,
     storage: Storage
-): Buffer {
+): Uint8Array {
     let curBuf = fetchWord(wordOff, storage);
-    const res = Buffer.alloc(numBytes, 0);
+    const res = new Uint8Array(numBytes);
 
     for (let i = 0; i < numBytes; i++) {
         res[i] = curBuf[offInWord];
@@ -151,7 +152,7 @@ function stor_decodeFixedBytes(
     typ: FixedBytesType,
     loc: StorageLocation,
     storage: Storage
-): undefined | [Buffer, StorageLocation] {
+): undefined | [Uint8Array, StorageLocation] {
     assert(
         loc.endOffsetInWord >= typ.size,
         `Internal Error: Can't decode {0} starting at offset {1} in word {2}`,
@@ -330,7 +331,7 @@ function keccakOfAddr(addr: bigint): bigint {
 function stor_decodeBytes(
     loc: StorageLocation,
     storage: Storage
-): undefined | [Buffer, StorageLocation] {
+): undefined | [Uint8Array, StorageLocation] {
     assert(
         loc.endOffsetInWord === 32,
         `Internal Error: Decoding bytes in the middle (off {0}) of word {1}`,
@@ -375,7 +376,7 @@ function stor_decodeString(
         return undefined;
     }
 
-    const str = res[0].toString("utf-8");
+    const str = bytesToUtf8(res[0]);
 
     return [str, res[1]];
 }

@@ -1,4 +1,5 @@
-import { Address } from "ethereumjs-util";
+import { Address } from "@ethereumjs/util";
+import { bytesToHex } from "ethereum-cryptography/utils";
 import {
     AddressType,
     ArrayType,
@@ -50,7 +51,7 @@ function ppValue(typ: TypeNode, v: any, infer: InferType): string {
     }
 
     if (typ instanceof FixedBytesType) {
-        return (v as Buffer).toString("hex");
+        return bytesToHex(v as Uint8Array);
     }
 
     if (typ instanceof BoolType) {
@@ -92,7 +93,7 @@ function ppValue(typ: TypeNode, v: any, infer: InferType): string {
         }
 
         if (typ.to instanceof BytesType) {
-            return `0x${(v as Buffer).toString("hex")}`;
+            return `0x${bytesToHex(v as Uint8Array)}`;
         }
 
         if (typ.to instanceof StringType) {
@@ -302,7 +303,7 @@ export function printStepSourceString(
      * while compiler refer to it as bytes.
      *
      * This may cause issues when file contains multibyte charactes.
-     * It worth to use `Buffer` or `Uint8Array` instead.
+     * It worth to use `Uint8Array` instead.
      */
     return (fileContents as string).substring(errorLoc.start, errorLoc.start + errorLoc.length);
 }
@@ -352,12 +353,12 @@ export function ppStep(step: StepState): string {
     }
 
     const immStr = step.op.immediates
-        .map((imm) => step.code.slice(step.pc + 1, step.pc + 1 + imm.length).toString("hex"))
+        .map((imm) => bytesToHex(step.code.slice(step.pc + 1, step.pc + 1 + imm.length)))
         .join(" ");
 
     const stackStr = step.evmStack
         .slice(step.evmStack.length - step.op.nPop, step.evmStack.length)
-        .map((v) => v.toString("hex"))
+        .map((v) => bytesToHex(v))
         .join(", ");
 
     return `${contractId}# ${step.pc}: ${step.op.mnemonic}(${step.op.opcode.toString(

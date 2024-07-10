@@ -1,41 +1,41 @@
-import { Address } from "ethereumjs-util";
+import { Address, bytesToUtf8 } from "@ethereumjs/util";
 import {
     AddressType,
     ArrayType,
-    assert,
     BoolType,
     BytesType,
-    DataLocation as SolDataLocation,
     FixedBytesType,
     InferType,
     IntType,
     PointerType,
+    DataLocation as SolDataLocation,
     StringType,
     StructDefinition,
     TupleType,
     TypeNode,
-    UserDefinedType
+    UserDefinedType,
+    assert
 } from "solc-typed-ast";
 import {
     CalldataLocation,
-    changeToLocation,
     DataLocation,
     DataLocationKind,
+    changeToLocation,
     isABITypeStaticSized
 } from "..";
 import {
+    MAX_ARR_DECODE_LIMIT,
+    Memory,
     bigEndianBufToBigint,
     checkAddrOoB,
     fits,
-    MAX_ARR_DECODE_LIMIT,
-    Memory,
     uint256
 } from "../..";
 
 function cd_decodeInt(
     typ: IntType,
     loc: CalldataLocation,
-    calldata: Buffer
+    calldata: Uint8Array
 ): undefined | [bigint, number] {
     const numAddr = checkAddrOoB(loc.address, calldata);
 
@@ -76,7 +76,7 @@ function cd_decodeFixedBytes(
     typ: FixedBytesType,
     loc: CalldataLocation,
     calldata: Memory
-): undefined | [Buffer, number] {
+): undefined | [Uint8Array, number] {
     const numAddr = checkAddrOoB(loc.address, calldata);
 
     if (numAddr === undefined) {
@@ -100,8 +100,8 @@ function cd_decodeBool(loc: CalldataLocation, calldata: Memory): undefined | [bo
     return [res, 32];
 }
 
-function cd_decodeBytes(loc: CalldataLocation, calldata: Memory): undefined | [Buffer, number] {
-    let res: Buffer | undefined = undefined;
+function cd_decodeBytes(loc: CalldataLocation, calldata: Memory): undefined | [Uint8Array, number] {
+    let res: Uint8Array | undefined = undefined;
 
     let bytesOffset = loc.address;
     let bytesSize = 0;
@@ -145,7 +145,7 @@ function cd_decodeString(loc: CalldataLocation, calldata: Memory): undefined | [
         return undefined;
     }
 
-    const str = bytes[0].toString("utf-8");
+    const str = bytesToUtf8(bytes[0]);
 
     return [str, bytes[1]];
 }

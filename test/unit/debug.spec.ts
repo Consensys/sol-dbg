@@ -1,5 +1,6 @@
 import { DefaultStateManager } from "@ethereumjs/statemanager";
 import { RunTxResult, VM } from "@ethereumjs/vm";
+import { bytesToHex } from "ethereum-cryptography/utils";
 import expect from "expect";
 import fse from "fs-extra";
 import { FunctionDefinition, assert } from "solc-typed-ast";
@@ -107,7 +108,7 @@ export function findFirstCallToFail(trace: StepState[]): StepState | undefined {
                 continue;
             }
 
-            const msgData = trace[i].memory.slice(argOffset, argOffset + argSize).toString("hex");
+            const msgData = bytesToHex(trace[i].memory.slice(argOffset, argOffset + argSize));
 
             if (msgData === FAIL_MSG_DATA) {
                 break;
@@ -151,7 +152,7 @@ function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {
                 return false;
             }
 
-            const actualResult = result.execResult.returnValue.toString("hex");
+            const actualResult = bytesToHex(result.execResult.returnValue);
             const res = step.result.value === actualResult;
 
             if (!res) {

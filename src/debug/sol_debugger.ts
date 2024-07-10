@@ -1,12 +1,17 @@
-import { Block } from "@ethereumjs/block";
-import { Blockchain } from "@ethereumjs/blockchain";
-import { Chain, Common, Hardfork } from "@ethereumjs/common";
-import { EVM, EVMOpts } from "@ethereumjs/evm/dist/evm";
-import { Transaction } from "@ethereumjs/tx";
-import { InterpreterStep } from "@ethereumjs/evm";
-import { DefaultStateManager, StateManager } from "@ethereumjs/statemanager";
-import { EEI, RunTxResult, VM } from "@ethereumjs/vm";
-import { Address, rlp } from "ethereumjs-util";
+import { Block } from "@ethereumjs/block/dist/cjs";
+import { Blockchain } from "@ethereumjs/blockchain/dist/cjs";
+import { Chain, Common, Hardfork } from "@ethereumjs/common/dist/cjs";
+import { EVMStateManagerInterface } from "@ethereumjs/common/src";
+import { InterpreterStep } from "@ethereumjs/evm/dist/cjs";
+import { EVM } from "@ethereumjs/evm/dist/cjs/evm";
+import { getOpcodesForHF } from "@ethereumjs/evm/dist/cjs/opcodes";
+import { EVMOpts } from "@ethereumjs/evm/dist/cjs/types";
+import { RLP } from "@ethereumjs/rlp/dist/cjs";
+import { DefaultStateManager } from "@ethereumjs/statemanager/dist/cjs";
+import { TypedTransaction } from "@ethereumjs/tx/dist/cjs/types";
+import { Address, setLengthLeft } from "@ethereumjs/util/dist/cjs";
+import { RunTxResult, VM } from "@ethereumjs/vm/dist/cjs";
+import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
 import {
     ASTNode,
     FunctionDefinition,
@@ -15,6 +20,7 @@ import {
     VariableDeclaration,
     assert
 } from "solc-typed-ast";
+import { EventEmitter } from "stream";
 import {
     DecodedBytecodeSourceMapEntry,
     HexString,
@@ -24,12 +30,11 @@ import {
     ZERO_ADDRESS_STRING,
     bigEndianBufToBigint,
     getFunctionSelector,
-    padStart,
     wordToAddress
 } from "..";
 import { getCodeHash, getCreationCodeHash } from "../artifacts";
-import { buildMsgDataViews } from "./abi";
 import { bigEndianBufToNumber, bigIntToBuf } from "../utils";
+import { buildMsgDataViews } from "./abi";
 import { ContractInfo, IArtifactManager, getOffsetSrc } from "./artifact_manager";
 import { isCalldataType2Slots } from "./decoding";
 import {
@@ -38,9 +43,7 @@ import {
     makeFoundryCheatcodePrecompile,
     setFoundryCtx
 } from "./foundry_cheatcodes";
-import { getOpcodesForHF } from "@ethereumjs/evm/dist/opcodes";
 import { foundryInterposedOps } from "./opcode_interposing";
-import { EventEmitter } from "stream";
 import {
     EVMOpInfo,
     OPCODES,
@@ -81,7 +84,7 @@ interface BaseFrame {
  */
 interface BaseExternalFrame extends BaseFrame {
     readonly sender: HexString;
-    readonly msgData: Buffer;
+    readonly msgData: Uint8Array;
     readonly address: Address;
 }
 
@@ -91,7 +94,7 @@ interface BaseExternalFrame extends BaseFrame {
 interface CallFrame extends BaseExternalFrame {
     readonly kind: FrameKind.Call;
     readonly receiver: HexString;
-    readonly code: Buffer;
+    readonly code: Uint8Array;
     readonly info?: ContractInfo;
 }
 
@@ -100,7 +103,7 @@ interface CallFrame extends BaseExternalFrame {
  */
 interface CreationFrame extends BaseExternalFrame {
     readonly kind: FrameKind.Creation;
-    readonly creationCode: Buffer;
+    readonly creationCode: Uint8Array;
     readonly info?: ContractInfo;
 }
 
@@ -165,11 +168,11 @@ export interface DataView {
     loc: DataLocation;
 }
 
-export type Memory = Buffer;
-export type Stack = Buffer[];
-export type Storage = ImmMap<bigint, Buffer>;
+export type Memory = Uint8Array;
+export type Stack = Uint8Array[];
+export type Storage = ImmMap<bigint, Uint8Array>;
 export interface EventDesc {
-    payload: Buffer;
+    payload: Uint8Array;
     topics: bigint[];
 }
 
@@ -201,7 +204,7 @@ export interface StepVMState {
  * that may be emitted on this step.
  */
 export interface StepState extends StepVMState {
-    code: Buffer;
+    code: Uint8Array;
     codeMdHash: HexString | undefined;
     stack: DbgStack;
     src: DecodedBytecodeSourceMapEntry | undefined;
@@ -243,12 +246,14 @@ export function getContractInfo(arg: Frame | DbgStack): ContractInfo | undefined
     return frame.info;
 }
 
-async function getStorage(manager: StateManager, addr: Address): Promise<Storage> {
+async function getStorage(manager: EVMStateManagerInterface, addr: Address): Promise<Storage> {
     const rawStorage = await manager.dumpStorage(addr);
-    const storageEntries: Array<[bigint, Buffer]> = [];
+    const storageEntries: Array<[bigint, Uint8Array]> = [];
 
     for (const [keyStr, valStr] of Object.entries(rawStorage)) {
-        const valBuf = padStart(rlp.decode(Buffer.from(valStr, "hex")), 32, 0);
+        const decoded = RLP.decode(hexToBytes(valStr));
+        assert(decoded instanceof Uint8Array, "");
+        const valBuf = setLengthLeft(decoded, 32);
 
         storageEntries.push([BigInt("0x" + keyStr), valBuf]);
     }
@@ -322,7 +327,7 @@ export class SolTxDebugger {
         stack: Frame[],
         state: StepVMState,
         trace: StepState[],
-        code: Buffer,
+        code: Uint8Array,
         codeHash: HexString | undefined
     ): Promise<void> {
         const lastExtFrame: ExternalFrame = lastExternalFrame(stack);
@@ -506,10 +511,10 @@ export class SolTxDebugger {
         vm: VM,
         step: StepVMState,
         trace: StepState[]
-    ): Promise<[Buffer, HexString | undefined]> {
+    ): Promise<[Uint8Array, HexString | undefined]> {
         const lastStep = trace.length > 0 ? trace[trace.length - 1] : undefined;
 
-        let code: Buffer;
+        let code: Uint8Array;
         let codeMdHash: HexString | undefined;
 
         if (lastStep !== undefined && createsContract(lastStep.op)) {
@@ -536,7 +541,7 @@ export class SolTxDebugger {
 
     async processRawTraceStep(
         vm: VM,
-        stateManager: StateManager,
+        stateManager: EVMStateManagerInterface,
         step: InterpreterStep,
         trace: StepState[],
         stack: Frame[]
@@ -544,13 +549,10 @@ export class SolTxDebugger {
         const evmStack = step.stack.map((word) => bigIntToBuf(word, 32, "big"));
         const lastStep = trace.length > 0 ? trace[trace.length - 1] : undefined;
 
-        let memory: Memory;
-
-        if (lastStep === undefined || changesMemory(lastStep.op)) {
-            memory = Buffer.from(step.memory);
-        } else {
-            memory = lastStep.memory;
-        }
+        const memory: Memory =
+            lastStep === undefined || changesMemory(lastStep.op)
+                ? new Uint8Array(step.memory)
+                : lastStep.memory;
 
         const op = getOpInfo(step.opcode.name);
 
@@ -634,7 +636,7 @@ export class SolTxDebugger {
             return tmpEvm;
         }
 
-        const opcodes = getOpcodesForHF(tmpEvm._common);
+        const opcodes = getOpcodesForHF(tmpEvm.common);
         const [precompile, foundryCtx] = makeFoundryCheatcodePrecompile();
 
         const optsCopy: EVMOpts = {
@@ -680,7 +682,7 @@ export class SolTxDebugger {
     }
 
     static async createVm(
-        stateManager: StateManager | undefined,
+        stateManager: EVMStateManagerInterface | undefined,
         foundryCheatcodes: boolean
     ): Promise<VM> {
         const common = new Common({ chain: Chain.Mainnet, hardfork: Hardfork.Shanghai });
@@ -690,10 +692,8 @@ export class SolTxDebugger {
             stateManager = new DefaultStateManager();
         }
 
-        const eei = new EEI(stateManager, common, blockchain);
-
         const evm = await SolTxDebugger.getEVM(
-            { common, eei, allowUnlimitedContractSize: true },
+            { common, blockchain, stateManager, allowUnlimitedContractSize: true },
             foundryCheatcodes
         );
 
@@ -711,9 +711,9 @@ export class SolTxDebugger {
     }
 
     async debugTx(
-        tx: Transaction,
+        tx: TypedTransaction,
         block: Block | undefined,
-        stateManager: StateManager
+        stateManager: EVMStateManagerInterface
     ): Promise<[StepState[], RunTxResult]> {
         const vm = await SolTxDebugger.createVm(stateManager, this.foundryCheatcodes);
 
@@ -730,7 +730,7 @@ export class SolTxDebugger {
             assert(
                 tx.to !== undefined,
                 'Expected "to" of tx {0} to be defined, got undefined instead',
-                tx.hash().toString("hex")
+                bytesToHex(tx.hash())
             );
 
             const code = await vm.stateManager.getContractCode(tx.to);
@@ -771,11 +771,11 @@ export class SolTxDebugger {
     }
 
     /**
-     * Build a `CreationFrame` from the given `sender` address, `data` `Buffer`(msg.data) and the current trace step number.
+     * Build a `CreationFrame` from the given `sender` address, `data` `Uint8Array`(msg.data) and the current trace step number.
      */
     private async makeCreationFrame(
         sender: HexString,
-        data: Buffer,
+        data: Uint8Array,
         step: number
     ): Promise<CreationFrame> {
         const contractInfo = await this.artifactManager.getContractFromCreationBytecode(data);
@@ -823,14 +823,14 @@ export class SolTxDebugger {
             }
 
             const matchingFuns = base.vFunctions.filter(
-                (fun) => getFunctionSelector(fun, infer) === selector
+                (fun: FunctionDefinition) => getFunctionSelector(fun, infer) === selector
             );
 
             if (matchingFuns.length === 1) {
                 return matchingFuns[0];
             }
 
-            const matchingGetters = base.vStateVariables.filter((vDef) => {
+            const matchingGetters = base.vStateVariables.filter((vDef: VariableDeclaration) => {
                 try {
                     return (
                         vDef.visibility === StateVariableVisibility.Public &&
@@ -850,13 +850,13 @@ export class SolTxDebugger {
     }
 
     /**
-     * Build a `CallFrame` from the given `sender` address, `receiver` address, `data` `Buffer`, (msg.data) and the current trace step number.
+     * Build a `CallFrame` from the given `sender` address, `receiver` address, `data` `Uint8Array`, (msg.data) and the current trace step number.
      */
     private async makeCallFrame(
         sender: HexString,
         receiver: Address,
-        data: Buffer,
-        receiverCode: Buffer,
+        data: Uint8Array,
+        receiverCode: Uint8Array,
         codeHash: HexString | undefined,
         step: number
     ): Promise<CallFrame> {
@@ -865,7 +865,7 @@ export class SolTxDebugger {
                 ? codeHash
                 : this.artifactManager.getContractFromMDHash(codeHash);
 
-        const selector: UnprefixedHexString = data.slice(0, 4).toString("hex");
+        const selector: UnprefixedHexString = bytesToHex(data.slice(0, 4));
 
         let callee: FunctionDefinition | VariableDeclaration | undefined;
         let args: Array<[string, DataView | undefined]> | undefined;
@@ -952,11 +952,13 @@ export class SolTxDebugger {
         try {
             formals =
                 callee instanceof FunctionDefinition
-                    ? callee.vParameters.vParameters.map((argDef) => [
+                    ? callee.vParameters.vParameters.map((argDef: VariableDeclaration) => [
                           argDef.name,
                           infer.variableDeclarationToTypeNode(argDef)
                       ])
-                    : infer.getterArgsAndReturn(callee)[0].map((typ, i) => [`ARG_${i}`, typ]);
+                    : infer
+                          .getterArgsAndReturn(callee)[0]
+                          .map((typ: TypeNode, i: number) => [`ARG_${i}`, typ]);
         } catch (e) {
             // `variableDeclarationToTypeNode` may fail when referencing structs/contracts that are defined
             // in SourceUnits that are missing

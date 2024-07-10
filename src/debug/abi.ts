@@ -1,3 +1,4 @@
+import { bytesToHex } from "ethereum-cryptography/utils";
 import {
     AddressType,
     ArrayType,
@@ -48,7 +49,9 @@ export function changeToLocation(typ: TypeNode, newLoc: SolDataLocation): TypeNo
     }
 
     if (typ instanceof TupleType) {
-        return new TupleType(typ.elements.map((elT) => changeToLocation(elT as TypeNode, newLoc)));
+        return new TupleType(
+            typ.elements.map((elT: TypeNode | null) => changeToLocation(elT as TypeNode, newLoc))
+        );
     }
 
     if (
@@ -118,7 +121,7 @@ function abiStaticTypeSize(typ: TypeNode): number {
  */
 export function decodeMethodArgs(
     callee: FunctionDefinition | VariableDeclaration,
-    data: Buffer,
+    data: Uint8Array,
     kind: DataLocationKind.Memory | DataLocationKind.CallData,
     infer: InferType,
     encoderVersion: ABIEncoderVersion
@@ -164,7 +167,7 @@ export function isTypeUnknownContract(t: TypeName | undefined): boolean {
  */
 export function buildMsgDataViews(
     callee: FunctionDefinition | VariableDeclaration,
-    data: Buffer,
+    data: Uint8Array,
     kind: DataLocationKind.Memory | DataLocationKind.CallData,
     infer: InferType,
     encoderVersion: ABIEncoderVersion
@@ -177,19 +180,21 @@ export function buildMsgDataViews(
             : infer.signatureHash(callee);
 
     assert(
-        selector === data.slice(0, 4).toString("hex"),
+        selector === bytesToHex(data.slice(0, 4)),
         `Expected selector ${selector} instead got ${data.slice(0, 4)}`
     );
 
     const formals: Array<[string, TypeNode]> =
         callee instanceof FunctionDefinition
-            ? callee.vParameters.vParameters.map((argDef) => [
+            ? callee.vParameters.vParameters.map((argDef: VariableDeclaration) => [
                   argDef.name,
                   isTypeUnknownContract(argDef.vType)
                       ? types.address
                       : infer.variableDeclarationToTypeNode(argDef)
               ])
-            : infer.getterArgsAndReturn(callee)[0].map((typ, i) => [`ARG_${i}`, typ]);
+            : infer
+                  .getterArgsAndReturn(callee)[0]
+                  .map((typ: TypeNode, i: number) => [`ARG_${i}`, typ]);
 
     let staticOff = 4;
 
@@ -317,12 +322,12 @@ export function toABIEncodedType(
                 "Getters of struct return type are not supported by ABI encoder v1"
             );
 
-            const fieldTs = type.definition.vMembers.map((fieldT) =>
+            const fieldTs = type.definition.vMembers.map((fieldT: VariableDeclaration) =>
                 infer.variableDeclarationToTypeNode(fieldT)
             );
 
             return new TupleType(
-                fieldTs.map((fieldT) => toABIEncodedType(fieldT, infer, encoderVersion))
+                fieldTs.map((fieldT: TypeNode) => toABIEncodedType(fieldT, infer, encoderVersion))
             );
         }
     }
