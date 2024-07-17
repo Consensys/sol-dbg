@@ -1,26 +1,29 @@
 import {
     AddressType,
     ArrayType,
-    assert,
     BoolType,
     BytesType,
     ContractDefinition,
-    DataLocation as SolDataLocation,
     EnumDefinition,
-    enumToIntType,
     FixedBytesType,
     FunctionDefinition,
     InferType,
     IntType,
     MappingType,
     PointerType,
+    DataLocation as SolDataLocation,
     StringType,
     StructDefinition,
     TupleType,
+    TypeName,
     TypeNode,
     UserDefinedType,
+    UserDefinedTypeName,
     UserDefinedValueTypeDefinition,
-    VariableDeclaration
+    VariableDeclaration,
+    assert,
+    enumToIntType,
+    types
 } from "solc-typed-ast";
 import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
 import { DataLocationKind, DataView, cd_decodeValue } from ".";
@@ -143,6 +146,17 @@ export function decodeMethodArgs(
     return res;
 }
 
+// @todo Migrate to solc-typed-ast
+export function isTypeUnknownContract(t: TypeName | undefined): boolean {
+    return (
+        t instanceof UserDefinedTypeName &&
+        t.referencedDeclaration < 0 &&
+        (t.typeString.startsWith("contract ") ||
+            t.typeString.startsWith("interface ") ||
+            t.typeString.startsWith("library "))
+    );
+}
+
 /**
  * An ABI-decoder implementation that is resilient to failures in some arguments decoding.
  * This function will return partial decoding results. This is needed since the fuzzer may not
@@ -171,7 +185,9 @@ export function buildMsgDataViews(
         callee instanceof FunctionDefinition
             ? callee.vParameters.vParameters.map((argDef) => [
                   argDef.name,
-                  infer.variableDeclarationToTypeNode(argDef)
+                  isTypeUnknownContract(argDef.vType)
+                      ? types.address
+                      : infer.variableDeclarationToTypeNode(argDef)
               ])
             : infer.getterArgsAndReturn(callee)[0].map((typ, i) => [`ARG_${i}`, typ]);
 
