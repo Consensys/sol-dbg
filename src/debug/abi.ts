@@ -146,7 +146,7 @@ export function decodeMethodArgs(
     return res;
 }
 
-// @todo Migrate to solc-typed-ast
+// @todo migrate to solc-typed-ast
 export function isTypeUnknownContract(t: TypeName | undefined): boolean {
     return (
         t instanceof UserDefinedTypeName &&
