@@ -1,12 +1,13 @@
 import { Block } from "@ethereumjs/block";
-import { StateManager } from "@ethereumjs/statemanager";
-import { Transaction, TxData } from "@ethereumjs/tx";
+import { EVMStateManagerInterface, Hardfork } from "@ethereumjs/common";
+import { DefaultStateManager } from "@ethereumjs/statemanager";
+import { TypedTransaction, TypedTxData } from "@ethereumjs/tx";
 import { Account, Address } from "@ethereumjs/util";
 import { RunTxResult, VM } from "@ethereumjs/vm";
+import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
 import { assert } from "solc-typed-ast";
 import { HexString } from "../artifacts";
 import { ZERO_ADDRESS_STRING, hexStrToBuf32, makeFakeTransaction } from "./misc";
-import { Hardfork } from "@ethereumjs/common";
 
 export interface BaseTestStep {
     address: HexString;
@@ -97,10 +98,10 @@ export interface TestCase extends BaseTestCase {
  */
 export class VMTestRunner {
     private _vm: VM;
-    private _txs: Transaction[];
+    private _txs: TypedTransaction[];
     private _txToBlock: Map<string, Block>;
     private _results: RunTxResult[];
-    private _stateRootBeforeTx = new Map<string, StateManager>();
+    private _stateRootBeforeTx = new Map<string, EVMStateManagerInterface>();
 
     get vm(): VM {
         return this._vm;
@@ -126,7 +127,7 @@ export class VMTestRunner {
     }
 
     private async setupInitialState(initialState: InitialState): Promise<void> {
-        const state = this.vm.stateManager;
+        const state = this.vm.stateManager as DefaultStateManager;
 
         await state.checkpoint();
 
@@ -134,7 +135,7 @@ export class VMTestRunner {
             const { nonce, balance, code, storage } = initialState.accounts[addressStr];
 
             const address = Address.fromString(addressStr);
-            const codeBuf = Buffer.from(code.slice(2), "hex");
+            const codeBuf = hexToBytes(code.slice(2));
 
             const acct = new Account();
 
@@ -157,12 +158,16 @@ export class VMTestRunner {
         await state.flush();
     }
 
-    async harveyStepToTransaction(step: BaseTestStep): Promise<Transaction> {
+    async harveyStepToTransaction(step: BaseTestStep): Promise<TypedTransaction> {
         const senderAddress = Address.fromString(step.origin);
         const senderAccount = await this.vm.stateManager.getAccount(senderAddress);
+        assert(
+            senderAccount !== undefined,
+            `Missing sender account for ${senderAddress.toString()}`
+        );
         const senderNonce = senderAccount.nonce;
 
-        const txData: TxData = {
+        const txData: TypedTxData = {
             value: step.value,
             gasLimit: step.gasLimit,
             gasPrice: 8,
@@ -174,7 +179,7 @@ export class VMTestRunner {
             txData.to = step.address;
         }
 
-        return makeFakeTransaction(txData, step.origin, this._vm._common);
+        return makeFakeTransaction(txData, step.origin, this._vm.common);
     }
 
     harveyStepToBlock(step: BaseTestStep): Block {
@@ -183,24 +188,24 @@ export class VMTestRunner {
                 header: {
                     coinbase: step.origin,
                     difficulty:
-                        this.vm._common.hardfork() === Hardfork.Shanghai ? 0 : step.blockDifficulty,
+                        this.vm.common.hardfork() === Hardfork.Shanghai ? 0 : step.blockDifficulty,
                     gasLimit: step.blockGasLimit,
                     number: step.blockNumber,
                     timestamp: step.blockTime
                 }
             },
             {
-                common: this.vm._common
+                common: this.vm.common
             }
         );
     }
 
-    private async _runTxInt(tx: Transaction, block: Block): Promise<RunTxResult> {
-        const txHash = tx.hash().toString("hex");
+    private async _runTxInt(tx: TypedTransaction, block: Block): Promise<RunTxResult> {
+        const txHash = bytesToHex(tx.hash());
 
         this._txs.push(tx);
 
-        this._stateRootBeforeTx.set(txHash, this.vm.stateManager.copy());
+        this._stateRootBeforeTx.set(txHash, this.vm.stateManager.shallowCopy(true));
         this._txToBlock.set(txHash, block);
 
         const res = this.vm.runTx({
@@ -210,12 +215,12 @@ export class VMTestRunner {
             skipNonce: true,
             skipBlockGasLimitValidation: true
         });
-        await this.vm.stateManager.flush();
+        await (this.vm.stateManager as DefaultStateManager).flush();
 
         return res;
     }
 
-    get txs(): Transaction[] {
+    get txs(): TypedTransaction[] {
         return this._txs;
     }
 
@@ -223,8 +228,8 @@ export class VMTestRunner {
         return this._results;
     }
 
-    getStateBeforeTx(tx: Transaction): StateManager {
-        const txHash = tx.hash().toString("hex");
+    getStateBeforeTx(tx: TypedTransaction): EVMStateManagerInterface {
+        const txHash = bytesToHex(tx.hash());
         const res = this._stateRootBeforeTx.get(txHash);
 
         assert(res !== undefined, `Unable to find state before tx ${txHash}`);
@@ -232,8 +237,8 @@ export class VMTestRunner {
         return res;
     }
 
-    getBlock(tx: Transaction): Block {
-        const txHash = tx.hash().toString("hex");
+    getBlock(tx: TypedTransaction): Block {
+        const txHash = bytesToHex(tx.hash());
         const res = this._txToBlock.get(txHash);
 
         assert(res !== undefined, `Unable to find block for tx ${txHash}`);

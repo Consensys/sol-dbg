@@ -1,3 +1,4 @@
+import { bytesToHex } from "ethereum-cryptography/utils";
 import {
     AddressType,
     ArrayType,
@@ -12,6 +13,7 @@ import {
     MappingType,
     PointerType,
     DataLocation as SolDataLocation,
+    StateVariableVisibility,
     StringType,
     StructDefinition,
     TupleType,
@@ -48,7 +50,9 @@ export function changeToLocation(typ: TypeNode, newLoc: SolDataLocation): TypeNo
     }
 
     if (typ instanceof TupleType) {
-        return new TupleType(typ.elements.map((elT) => changeToLocation(elT as TypeNode, newLoc)));
+        return new TupleType(
+            typ.elements.map((elT: TypeNode | null) => changeToLocation(elT as TypeNode, newLoc))
+        );
     }
 
     if (
@@ -118,7 +122,7 @@ function abiStaticTypeSize(typ: TypeNode): number {
  */
 export function decodeMethodArgs(
     callee: FunctionDefinition | VariableDeclaration,
-    data: Buffer,
+    data: Uint8Array,
     kind: DataLocationKind.Memory | DataLocationKind.CallData,
     infer: InferType,
     encoderVersion: ABIEncoderVersion
@@ -164,7 +168,7 @@ export function isTypeUnknownContract(t: TypeName | undefined): boolean {
  */
 export function buildMsgDataViews(
     callee: FunctionDefinition | VariableDeclaration,
-    data: Buffer,
+    data: Uint8Array,
     kind: DataLocationKind.Memory | DataLocationKind.CallData,
     infer: InferType,
     encoderVersion: ABIEncoderVersion
@@ -177,19 +181,21 @@ export function buildMsgDataViews(
             : infer.signatureHash(callee);
 
     assert(
-        selector === data.slice(0, 4).toString("hex"),
+        selector === bytesToHex(data.slice(0, 4)),
         `Expected selector ${selector} instead got ${data.slice(0, 4)}`
     );
 
     const formals: Array<[string, TypeNode]> =
         callee instanceof FunctionDefinition
-            ? callee.vParameters.vParameters.map((argDef) => [
+            ? callee.vParameters.vParameters.map((argDef: VariableDeclaration) => [
                   argDef.name,
                   isTypeUnknownContract(argDef.vType)
                       ? types.address
                       : infer.variableDeclarationToTypeNode(argDef)
               ])
-            : infer.getterArgsAndReturn(callee)[0].map((typ, i) => [`ARG_${i}`, typ]);
+            : infer
+                  .getterArgsAndReturn(callee)[0]
+                  .map((typ: TypeNode, i: number) => [`ARG_${i}`, typ]);
 
     let staticOff = 4;
 
@@ -317,12 +323,12 @@ export function toABIEncodedType(
                 "Getters of struct return type are not supported by ABI encoder v1"
             );
 
-            const fieldTs = type.definition.vMembers.map((fieldT) =>
+            const fieldTs = type.definition.vMembers.map((fieldT: VariableDeclaration) =>
                 infer.variableDeclarationToTypeNode(fieldT)
             );
 
             return new TupleType(
-                fieldTs.map((fieldT) => toABIEncodedType(fieldT, infer, encoderVersion))
+                fieldTs.map((fieldT: TypeNode) => toABIEncodedType(fieldT, infer, encoderVersion))
             );
         }
     }
@@ -364,4 +370,41 @@ export function isABITypeStaticSized(type: TypeNode): boolean {
     }
 
     throw new Error(`NYI isABITypeStaticSized(${type.pp()})`);
+}
+
+/**
+ * Given a 4-byte selector, a target contract and an `InferType` object return
+ * the ASTNode that corresponds to the target callee. Must be either a
+ * `FunctionDefinition`, a `VariableDeclaration` (for public state var getters),
+ * or undefined (if we cannot identify it)
+ */
+export function findMethodBySelector(
+    selector: Uint8Array | string,
+    contract: ContractDefinition,
+    infer: InferType
+): FunctionDefinition | VariableDeclaration | undefined {
+    const strSelector = typeof selector === "string" ? selector : bytesToHex(selector);
+
+    for (const base of contract.vLinearizedBaseContracts) {
+        if (!base) {
+            continue;
+        }
+
+        for (const fun of base.vFunctions) {
+            const funSel = getFunctionSelector(fun, infer);
+            if (funSel == strSelector) {
+                return fun;
+            }
+        }
+
+        for (const v of base.vStateVariables) {
+            if (
+                v.visibility === StateVariableVisibility.Public &&
+                infer.signatureHash(v) == strSelector
+            ) {
+                return v;
+            }
+        }
+    }
+    return undefined;
 }

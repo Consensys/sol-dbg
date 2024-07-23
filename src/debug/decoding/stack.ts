@@ -1,4 +1,4 @@
-import { Address } from "ethereumjs-util";
+import { Address } from "@ethereumjs/util";
 import {
     AddressType,
     assert,
@@ -16,7 +16,7 @@ import {
 import { Stack, StackLocation } from "..";
 import { bigEndianBufToBigint, fits, wordToAddress } from "../../utils";
 
-function fetchStackWord(offsetFromTop: number, stack: Stack): Buffer | undefined {
+function fetchStackWord(offsetFromTop: number, stack: Stack): Uint8Array | undefined {
     return stack.length <= offsetFromTop ? undefined : stack[stack.length - offsetFromTop - 1];
 }
 
@@ -57,7 +57,7 @@ function st_decodeFixedBytes(
     typ: FixedBytesType,
     loc: StackLocation,
     stack: Stack
-): undefined | Buffer {
+): undefined | Uint8Array {
     const addrWord = fetchStackWord(loc.offsetFromTop, stack);
 
     if (addrWord === undefined) {

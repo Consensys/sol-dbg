@@ -1,6 +1,7 @@
 import { Decoder } from "cbor";
+import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
 import { assert } from "solc-typed-ast";
-import { toHexString } from "..";
+import { readInt16Be, toHexString } from "..";
 import { HexString, PartialSolcOutput, UnprefixedHexString } from "./solc";
 
 interface ContractMdStruct {
@@ -36,15 +37,58 @@ function getAllStringsAfterPrefix(hay: string, prefix: string, expLen: number): 
     }
 }
 
-function getAllBuffersAfterPrefix(hay: Buffer, prefix: Buffer, expLen: number): Buffer[] {
-    const res: Buffer[] = [];
+/**
+ * Find the last (right-most) index in hay where `needle` appears. If `off` is specified, search before `off` (`off` inclusive).
+ * If `needle` is not found, return -1;
+ */
+function lastIndexOfArr(hay: Uint8Array, needle: Uint8Array, off: number | undefined): number {
+    assert(needle.length > 0, ``);
+    let res = hay.length - 1;
+    res = off != undefined ? Math.min(off, res) : res;
+
+    while (res >= 0) {
+        res = hay.lastIndexOf(needle[0], res);
+
+        if (res < 0) {
+            break;
+        }
+
+        if (res + needle.length > hay.length) {
+            res--;
+            continue;
+        }
+
+        let match = true;
+        for (let i = 1; i < needle.length; i++) {
+            if (hay[res + i] !== needle[i]) {
+                match = false;
+                break;
+            }
+        }
+
+        if (match) {
+            break;
+        }
+
+        res--;
+    }
+
+    return res;
+}
+
+function getAllBuffersAfterPrefix(
+    hay: Uint8Array,
+    prefix: Uint8Array,
+    expLen: number
+): Uint8Array[] {
+    const res: Uint8Array[] = [];
 
     let off = hay.length;
 
     while (true) {
-        off = hay.lastIndexOf(prefix, off - 1);
+        off = lastIndexOfArr(hay, prefix, off - 1);
 
-        if (off === -1) {
+        if (off < 0) {
             return res;
         }
 
@@ -57,13 +101,13 @@ function getAllBuffersAfterPrefix(hay: Buffer, prefix: Buffer, expLen: number): 
 }
 
 const ipfsStrPrefix = "64697066735822";
-const ipfsBufPrefix = Buffer.from(ipfsStrPrefix, "hex");
+const ipfsBufPrefix = hexToBytes(ipfsStrPrefix);
 const bzzr0 = "65627a7a72305820";
-const bzzr0BufPrefix = Buffer.from(bzzr0, "hex");
+const bzzr0BufPrefix = hexToBytes(bzzr0);
 const bzzr1 = "65627a7a72315820";
-const bzzr1BufPrefix = Buffer.from(bzzr1, "hex");
+const bzzr1BufPrefix = hexToBytes(bzzr1);
 
-function getBytecodeHashHacky(bytecode: string | Buffer): ContractMdStruct | undefined {
+function getBytecodeHashHacky(bytecode: string | Uint8Array): ContractMdStruct | undefined {
     if (typeof bytecode === "string") {
         const ipfsCandidates = new Set(getAllStringsAfterPrefix(bytecode, ipfsStrPrefix, 34));
         const bzzr0Candidates = new Set(getAllStringsAfterPrefix(bytecode, bzzr0, 32));
@@ -92,19 +136,19 @@ function getBytecodeHashHacky(bytecode: string | Buffer): ContractMdStruct | und
         }
 
         if (ipfsCandidates.size === 1) {
-            return { ipfs: "0x" + [...ipfsCandidates][0].toString("hex") };
+            return { ipfs: "0x" + bytesToHex([...ipfsCandidates][0]) };
         }
 
         if (bzzr0Candidates.size === 1) {
-            return { bzzr0: "0x" + [...bzzr0Candidates][0].toString("hex") };
+            return { bzzr0: "0x" + bytesToHex([...bzzr0Candidates][0]) };
         }
 
-        return { bzzr1: "0x" + [...bzzr1Candidates][0].toString("hex") };
+        return { bzzr1: "0x" + bytesToHex([...bzzr1Candidates][0]) };
     }
 }
 
 function getDeployedBytecodeMdInfo(
-    deployedBytecode: UnprefixedHexString | Buffer
+    deployedBytecode: UnprefixedHexString | Uint8Array
 ): ContractMdStruct {
     const len = deployedBytecode.length;
 
@@ -117,7 +161,7 @@ function getDeployedBytecodeMdInfo(
 
             rawMd = Decoder.decodeAllSync(mdHex, { encoding: "hex" })[0];
         } else {
-            const off = deployedBytecode.readInt16BE(deployedBytecode.length - 2);
+            const off = readInt16Be(deployedBytecode, deployedBytecode.length - 2);
 
             rawMd = Decoder.decodeAllSync(
                 deployedBytecode.slice(
@@ -157,7 +201,7 @@ function getDeployedBytecodeMdInfo(
     return res;
 }
 
-export function getCodeHash(deplBytecode: UnprefixedHexString | Buffer): HexString | undefined {
+export function getCodeHash(deplBytecode: UnprefixedHexString | Uint8Array): HexString | undefined {
     const md = getDeployedBytecodeMdInfo(deplBytecode);
 
     // TODO: Should we prefix the hash with the hash type? bzzr0/ipfs
@@ -177,7 +221,7 @@ export function getCodeHash(deplBytecode: UnprefixedHexString | Buffer): HexStri
 }
 
 export function getCreationCodeHash(
-    creationBytecode: UnprefixedHexString | Buffer
+    creationBytecode: UnprefixedHexString | Uint8Array
 ): HexString | undefined {
     const md = getBytecodeHashHacky(creationBytecode);
 

@@ -1,16 +1,5 @@
-import { ERROR } from "@ethereumjs/evm/dist/exceptions";
-import { RunState } from "@ethereumjs/evm/dist/interpreter";
-import {
-    OpHandler,
-    Opcode,
-    addressToBuffer,
-    trap,
-    writeCallOutput
-} from "@ethereumjs/evm/dist/opcodes";
-import { AsyncDynamicGasHandler, SyncDynamicGasHandler } from "@ethereumjs/evm/dist/opcodes/gas";
-import { AddOpcode } from "@ethereumjs/evm/dist/types";
-import { bigIntToBuffer } from "@ethereumjs/util";
-import { Address, setLengthLeft } from "ethereumjs-util";
+import { Common } from "@ethereumjs/common";
+import { Address, bigIntToBytes, setLengthLeft } from "@ethereumjs/util";
 import { bigEndianBufToBigint } from "../utils";
 import {
     FoundryCheatcodesAddress,
@@ -18,6 +7,28 @@ import {
     RevertMatch,
     returnStateMatchesRevert
 } from "./foundry_cheatcodes";
+
+const EXCEPTION_MOD = require("@ethereumjs/evm/dist/cjs/exceptions");
+const ERROR = EXCEPTION_MOD.ERROR;
+
+const OPCODES_MOD = require("@ethereumjs/evm/dist/cjs/opcodes");
+const addresstoBytes = OPCODES_MOD.addresstoBytes;
+const trap = OPCODES_MOD.trap;
+const writeCallOutput = OPCODES_MOD.writeCallOutput;
+
+/// require(@ethereumjs/evm/dist/cjs/types).AddOpcode
+type AddOpcode = any;
+/// require(@ethereumjs/evm/dist/cjs/types).Opcode
+type Opcode = any;
+/// require(@ethereumjs/evm/dist/cjs/types).OpHandler
+type OpHandler = any;
+
+/// require("@ethereumjs/evm/dist/cjs/opcodes/gas").AsyncDynamicGasHandler
+type AsyncDynamicGasHandler = any;
+/// require("@ethereumjs/evm/dist/cjs/opcodes/gas").SyncDynamicGasHandler
+type SyncDynamicGasHandler = any;
+/// require("@ethereumjs/evm/dist/cjs/interpreter").RunState
+type RunState = any;
 
 function interopseOnOp(code: number, opcodes: any, handler: OpHandler): AddOpcode {
     const originalOp: Opcode = opcodes.opcodes.get(code);
@@ -65,7 +76,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
 
                 const origin =
                     prankOrigin instanceof Address
-                        ? bigEndianBufToBigint(prankOrigin.toBuffer())
+                        ? bigEndianBufToBigint(prankOrigin.toBytes())
                         : runState.interpreter.getTxOrigin();
 
                 runState.stack.push(origin);
@@ -78,7 +89,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
 
                 const caller =
                     prankSender instanceof Address
-                        ? bigEndianBufToBigint(prankSender.toBuffer())
+                        ? bigEndianBufToBigint(prankSender.toBytes())
                         : runState.interpreter.getCaller();
 
                 runState.stack.push(caller);
@@ -87,7 +98,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
         // 0xf0: CREATE
         [
             0xf0,
-            async function (runState, common) {
+            async function (runState: RunState, common: Common) {
                 // If we're calling vm.* ignore the expectedRevert
                 const expectedRevert = getExpectedRevert(foundryCtx);
                 const [value, offset, length] = runState.stack.popN(3);
@@ -95,7 +106,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
                 if (
                     common.isActivatedEIP(3860) &&
                     length > Number(common.param("vm", "maxInitCodeSize")) &&
-                    !runState.interpreter._evm._allowUnlimitedInitCodeSize
+                    !runState.interpreter._evm.allowUnlimitedInitCodeSize
                 ) {
                     trap(ERROR.INITCODE_SIZE_VIOLATION);
                 }
@@ -103,7 +114,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
                 const gasLimit = runState.messageGasLimit!;
                 runState.messageGasLimit = undefined;
 
-                let data = Buffer.alloc(0);
+                let data = new Uint8Array(0);
                 if (length !== BigInt(0)) {
                     data = runState.memory.read(Number(offset), Number(length), true);
                 }
@@ -115,7 +126,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
         // 0xf5: CREATE2
         [
             0xf5,
-            async function (runState, common) {
+            async function (runState: RunState, common: Common) {
                 const expectedRevert = foundryCtx.getExpectedRevert();
 
                 if (runState.interpreter.isStatic()) {
@@ -127,7 +138,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
                 if (
                     common.isActivatedEIP(3860) &&
                     length > Number(common.param("vm", "maxInitCodeSize")) &&
-                    !runState.interpreter._evm._allowUnlimitedInitCodeSize
+                    !runState.interpreter._evm.allowUnlimitedInitCodeSize
                 ) {
                     trap(ERROR.INITCODE_SIZE_VIOLATION);
                 }
@@ -135,7 +146,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
                 const gasLimit = runState.messageGasLimit!;
                 runState.messageGasLimit = undefined;
 
-                let data = Buffer.alloc(0);
+                let data = new Uint8Array(0);
                 if (length !== BigInt(0)) {
                     data = runState.memory.read(Number(offset), Number(length), true);
                 }
@@ -144,7 +155,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
                     gasLimit,
                     value,
                     data,
-                    setLengthLeft(bigIntToBuffer(salt), 32)
+                    setLengthLeft(bigIntToBytes(salt), 32)
                 );
                 handleCreateReturn(runState, ret, expectedRevert);
             }
@@ -156,11 +167,11 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
                 const [, toAddr, value, inOffset, inLength, outOffset, outLength] =
                     runState.stack.popN(7);
 
-                const toAddress = new Address(addressToBuffer(toAddr));
+                const toAddress = new Address(addresstoBytes(toAddr));
 
                 const expectedRevert = getExpectedRevert(foundryCtx, toAddress);
 
-                let data = Buffer.alloc(0);
+                let data = new Uint8Array(0);
                 if (inLength !== BigInt(0)) {
                     data = runState.memory.read(Number(inOffset), Number(inLength), true);
                 }
@@ -176,12 +187,12 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
         // 0x00: STOP
         [
             0x00,
-            function (runState) {
+            function (runState: RunState) {
                 const expectedRevert = getExpectedRevert(foundryCtx);
                 if (expectedRevert === undefined) {
                     trap(ERROR.STOP);
                 } else {
-                    runState.interpreter.revert(Buffer.alloc(0));
+                    runState.interpreter.revert(new Uint8Array(0));
                 }
             }
         ],
@@ -191,13 +202,13 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
             async function (runState: RunState) {
                 const [, toAddr, value, inOffset, inLength, outOffset, outLength] =
                     runState.stack.popN(7);
-                const toAddress = new Address(addressToBuffer(toAddr));
+                const toAddress = new Address(addresstoBytes(toAddr));
                 const expectedRevert = getExpectedRevert(foundryCtx, toAddress);
 
                 const gasLimit = runState.messageGasLimit!;
                 runState.messageGasLimit = undefined;
 
-                let data = Buffer.alloc(0);
+                let data = new Uint8Array(0);
                 if (inLength !== BigInt(0)) {
                     data = runState.memory.read(Number(inOffset), Number(inLength), true);
                 }
@@ -210,13 +221,13 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
         // 0xf4: DELEGATECALL
         [
             0xf4,
-            async function (runState) {
+            async function (runState: RunState) {
                 const value = runState.interpreter.getCallValue();
                 const [, toAddr, inOffset, inLength, outOffset, outLength] = runState.stack.popN(6);
-                const toAddress = new Address(addressToBuffer(toAddr));
+                const toAddress = new Address(addresstoBytes(toAddr));
                 const expectedRevert = getExpectedRevert(foundryCtx, toAddress);
 
-                let data = Buffer.alloc(0);
+                let data = new Uint8Array(0);
                 if (inLength !== BigInt(0)) {
                     data = runState.memory.read(Number(inOffset), Number(inLength), true);
                 }
@@ -237,16 +248,16 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
         // 0xfa: STATICCALL
         [
             0xfa,
-            async function (runState) {
+            async function (runState: RunState) {
                 const value = BigInt(0);
                 const [, toAddr, inOffset, inLength, outOffset, outLength] = runState.stack.popN(6);
-                const toAddress = new Address(addressToBuffer(toAddr));
+                const toAddress = new Address(addresstoBytes(toAddr));
                 const expectedRevert = getExpectedRevert(foundryCtx, toAddress);
 
                 const gasLimit = runState.messageGasLimit!;
                 runState.messageGasLimit = undefined;
 
-                let data = Buffer.alloc(0);
+                let data = new Uint8Array(0);
                 if (inLength !== BigInt(0)) {
                     data = runState.memory.read(Number(inOffset), Number(inLength), true);
                 }
@@ -259,9 +270,9 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
         // 0xf3: RETURN
         [
             0xf3,
-            function (runState) {
+            function (runState: RunState) {
                 const [offset, length] = runState.stack.popN(2);
-                let returnData = Buffer.alloc(0);
+                let returnData = new Uint8Array(0);
 
                 // If we're calling vm.* ignore the expectedRevert
                 const expectedRevert = getExpectedRevert(foundryCtx);
@@ -313,7 +324,7 @@ function handleReturn(
         ret = 0n;
     } else {
         // Otherwise we match the expected revert, so return all 0s
-        runState.returnBuffer = Buffer.alloc(outLength !== 0n ? Number(outLength) : 32 * 128, 0);
+        runState.returnBytes = new Uint8Array(outLength !== 0n ? Number(outLength) : 32 * 128);
         ret = 1n;
     }
 
