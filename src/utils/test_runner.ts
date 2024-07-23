@@ -1,10 +1,9 @@
 import { Block } from "@ethereumjs/block";
-import { Hardfork } from "@ethereumjs/common";
-import { EVMStateManagerInterface } from "@ethereumjs/common/src";
-import { DefaultStateManager } from "@ethereumjs/statemanager/dist/cjs";
-import { TypedTransaction, TypedTxData } from "@ethereumjs/tx/dist/cjs";
-import { Account, Address } from "@ethereumjs/util/dist/cjs";
-import { RunTxResult, VM } from "@ethereumjs/vm/dist/cjs";
+import { EVMStateManagerInterface, Hardfork } from "@ethereumjs/common";
+import { DefaultStateManager } from "@ethereumjs/statemanager";
+import { TypedTransaction, TypedTxData } from "@ethereumjs/tx";
+import { Account, Address } from "@ethereumjs/util";
+import { RunTxResult, VM } from "@ethereumjs/vm";
 import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
 import { assert } from "solc-typed-ast";
 import { HexString } from "../artifacts";
@@ -206,7 +205,7 @@ export class VMTestRunner {
 
         this._txs.push(tx);
 
-        this._stateRootBeforeTx.set(txHash, this.vm.stateManager.shallowCopy());
+        this._stateRootBeforeTx.set(txHash, this.vm.stateManager.shallowCopy(true));
         this._txToBlock.set(txHash, block);
 
         const res = this.vm.runTx({

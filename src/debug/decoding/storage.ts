@@ -1,4 +1,4 @@
-import { Address, bytesToUtf8 } from "@ethereumjs/util/dist/cjs";
+import { Address, bytesToUtf8 } from "@ethereumjs/util";
 import { keccak256 } from "ethereum-cryptography/keccak.js";
 import {
     AddressType,

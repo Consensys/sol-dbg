@@ -1,32 +1,37 @@
-import { EVM, EVMInterface, ExecResult } from "@ethereumjs/evm/dist/cjs";
-import { EvmErrorResult } from "@ethereumjs/evm/dist/cjs/evm";
-import { ERROR, EvmError } from "@ethereumjs/evm/dist/cjs/exceptions";
-import {
-    Env,
-    Interpreter,
-    InterpreterOpts,
-    InterpreterResult,
-    RunState
-} from "@ethereumjs/evm/dist/cjs/interpreter";
-import { PrecompileFunc, PrecompileInput } from "@ethereumjs/evm/dist/cjs/precompiles";
+import { EVM, EVMInterface, ExecResult, PrecompileInput } from "@ethereumjs/evm";
 import {
     Account,
     Address,
     privateToAddress,
     setLengthLeft,
     setLengthRight
-} from "@ethereumjs/util/dist/cjs";
+} from "@ethereumjs/util";
 import { keccak256 } from "ethereum-cryptography/keccak.js";
-import { utf8ToBytes } from "ethereum-cryptography/utils";
+import { bytesToHex, utf8ToBytes } from "ethereum-cryptography/utils";
 import EventEmitter from "events";
-import {
-    bigEndianBufToBigint,
-    bigIntToBuf,
-    uint8ArrConcat,
-    uint8ArrEq,
-    uint8ArrToHexString
-} from "../utils";
+import { bigEndianBufToBigint, bigIntToBuf, uint8ArrConcat, uint8ArrEq } from "../utils";
 
+const EVM_MOD = require("@ethereumjs/evm/dist/cjs/evm");
+const EvmErrorResult = EVM_MOD.EvmErrorResult;
+
+const EXCEPTION_MOD = require("@ethereumjs/evm/dist/cjs/exceptions");
+const ERROR = EXCEPTION_MOD.ERROR;
+const EvmError = EXCEPTION_MOD.EvmError;
+
+/// require("@ethereumjs/evm/dist/cjs/interpreter").Env
+type Env = any;
+/// require("@ethereumjs/evm/dist/cjs/interpreter").InterpreterOpts
+type InterpreterOpts = any;
+/// require("@ethereumjs/evm/dist/cjs/interpreter").InterpreterResult
+type InterpreterResult = any;
+
+const INTERPRETER_MOD = require("@ethereumjs/evm/dist/cjs/interpreter");
+const Interpreter = INTERPRETER_MOD.Interpreter;
+
+/// require("@ethereumjs/evm/dist/cjs/precompiles").PrecompileFunc
+type PrecompileFunc = any;
+/// require("@ethereumjs/evm/dist/cjs/precompiles").RunState
+type RunState = any;
 /*
  * Hotpatch Interpreter.run so we can keep track of the runtime relationships between EEIs.
  * We use this to track when one call context is a child of another, which helps us scope pranks
@@ -86,9 +91,9 @@ export const EXPECT_REVERT_SELECTOR01 = getSelector("expectRevert()");
 export const EXPECT_REVERT_SELECTOR02 = getSelector("expectRevert(bytes4)");
 export const EXPECT_REVERT_SELECTOR03 = getSelector("expectRevert(bytes)");
 
-export const FAIL_LOC = uint8ArrToHexString(setLengthRight(utf8ToBytes("failed"), 32));
+export const FAIL_LOC = bytesToHex(setLengthRight(utf8ToBytes("failed"), 32));
 
-export const FAIL_MSG_DATA = uint8ArrToHexString(
+export const FAIL_MSG_DATA = bytesToHex(
     uint8ArrConcat(
         getSelector("store(address,bytes32,bytes32)"),
         setLengthLeft(FoundryCheatcodesAddress.toBytes(), 32),
@@ -153,9 +158,8 @@ export function returnStateMatchesRevert(
     // This looks like an Error(string) encoded message. Extract the inner string/bytes
     if (excDataSize >= 4n && uint8ArrEq(excData.slice(0, 4), ERROR_PREFIX)) {
         try {
-            actualBytes = new Uint8Array(
-                ethABI.decodeParameters(["string"], uint8ArrToHexString(excData.slice(4)))[0]
-            );
+            const errMsg = ethABI.decodeParameters(["string"], bytesToHex(excData.slice(4)))[0];
+            actualBytes = new TextEncoder().encode(errMsg);
         } catch {
             actualBytes = excData;
         }
@@ -299,7 +303,7 @@ export class FoundryContext {
      * Callback from the hooks in the interpreter to keep track of the
      * eei stack
      */
-    beforeInterpRunCB(interp: Interpreter): void {
+    beforeInterpRunCB(interp: typeof Interpreter): void {
         const env = interp._env;
         const pendingPrank = this.getPendingPrank();
 
@@ -341,7 +345,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
 
         if (uint8ArrEq(selector, WARP_SELECTOR)) {
             const newTime = BigInt(
-                ethABI.decodeParameters(["uint256"], uint8ArrToHexString(input.data.slice(4)))[0]
+                ethABI.decodeParameters(["uint256"], bytesToHex(input.data.slice(4)))[0]
             );
 
             ctx.timeWarp = newTime;
@@ -354,7 +358,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
 
         if (uint8ArrEq(selector, ROLL_SELECTOR)) {
             const newBlockNum = BigInt(
-                ethABI.decodeParameters(["uint256"], uint8ArrToHexString(input.data.slice(4)))[0]
+                ethABI.decodeParameters(["uint256"], bytesToHex(input.data.slice(4)))[0]
             );
 
             ctx.rollBockNum = newBlockNum;
@@ -394,10 +398,10 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             */
 
             if (addr.equals(FoundryCheatcodesAddress)) {
-                const strLoc = uint8ArrToHexString(loc);
+                const strLoc = bytesToHex(loc);
 
                 if (strLoc === FAIL_LOC) {
-                    ctx.failCalled = BigInt(uint8ArrToHexString(value)) !== 0n;
+                    ctx.failCalled = BigInt(bytesToHex(value)) !== 0n;
                 } else {
                     throw new Error(
                         `NYI store to loc ${strLoc} of foundry precompile contract ${addr.toString()}`
@@ -441,7 +445,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
 
         if (uint8ArrEq(selector, DEAL_SELECTOR)) {
             const addr = new Address(input.data.slice(16, 36));
-            const newBalance = "0x" + uint8ArrToHexString(input.data.slice(36, 68));
+            const newBalance = "0x" + bytesToHex(input.data.slice(36, 68));
 
             let acct: Account | undefined = await input._EVM.stateManager.getAccount(addr);
 

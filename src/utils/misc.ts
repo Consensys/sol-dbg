@@ -1,7 +1,6 @@
-import { Common } from "@ethereumjs/common/dist/cjs";
-import { TransactionFactory } from "@ethereumjs/tx/dist/cjs";
-import { TypedTransaction, TypedTxData } from "@ethereumjs/tx/dist/cjs/types";
-import { Address, setLengthLeft } from "@ethereumjs/util/dist/cjs";
+import { Common } from "@ethereumjs/common";
+import { TransactionFactory, TypedTransaction, TypedTxData } from "@ethereumjs/tx";
+import { Address, setLengthLeft } from "@ethereumjs/util";
 import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
 import fse from "fs-extra";
 import { join } from "path";
@@ -14,7 +13,7 @@ import {
     assert
 } from "solc-typed-ast";
 import { HexString, UnprefixedHexString } from "..";
-import { DataLocation, DataLocationKind, DataView, Stack, Storage } from "../debug/sol_debugger";
+import { DataLocation, DataLocationKind, DataView, Stack, Storage } from "../debug/types";
 
 export const ZERO_ADDRESS_STRING: HexString = "0x0000000000000000000000000000000000000000";
 export const ZERO_ADDRESS = Address.fromString(ZERO_ADDRESS_STRING);

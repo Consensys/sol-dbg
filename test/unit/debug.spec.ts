@@ -3,19 +3,18 @@ import { RunTxResult, VM } from "@ethereumjs/vm";
 import { bytesToHex } from "ethereum-cryptography/utils";
 import expect from "expect";
 import fse from "fs-extra";
-import { FunctionDefinition, assert } from "solc-typed-ast";
+import { assert, DecodedBytecodeSourceMapEntry, FunctionDefinition } from "solc-typed-ast";
 import {
     ArtifactManager,
+    bigEndianBufToNumber,
     ContractInfo,
-    DecodedBytecodeSourceMapEntry,
+    getContractInfo,
+    lastExternalFrame,
+    lsJson,
     PartialSolcOutput,
     SolTxDebugger,
     SourceFileInfo,
     StepState,
-    bigEndianBufToNumber,
-    getContractInfo,
-    lastExternalFrame,
-    lsJson,
     wordToAddress
 } from "../../src";
 import {
@@ -23,7 +22,7 @@ import {
     FoundryCheatcodesAddress,
     getFoundryCtx
 } from "../../src/debug/foundry_cheatcodes";
-import { ResultKind, TestCase, TestStep, VMTestRunner, ppStackTrace } from "../../src/utils";
+import { ppStackTrace, ResultKind, TestCase, TestStep, VMTestRunner } from "../../src/utils";
 
 /**
  * Find the last step in the non-internal code, before trace step i
@@ -34,13 +33,13 @@ export function findLastNonInternalStepBeforeStepI(
 ): StepState | undefined {
     const stack = trace[i].stack;
 
-    for (let i = stack.length - 1; i >= 0; i--) {
-        if (stack[i].callee instanceof FunctionDefinition) {
-            if (i === stack.length - 1) {
+    for (let j = stack.length - 1; j >= 0; j--) {
+        if (stack[j].callee instanceof FunctionDefinition) {
+            if (j === stack.length - 1) {
                 return trace[i];
             }
 
-            return trace[stack[i + 1].startStep - 1];
+            return trace[stack[j + 1].startStep - 1];
         }
     }
 

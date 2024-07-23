@@ -49,12 +49,12 @@ function lastIndexOfArr(hay: Uint8Array, needle: Uint8Array, off: number | undef
     while (res >= 0) {
         res = hay.lastIndexOf(needle[0], res);
 
-        if (res + needle.length > hay.length) {
-            res--;
-            continue;
+        if (res < 0) {
+            break;
         }
 
-        if (res < 0) {
+        if (res + needle.length > hay.length) {
+            res--;
             continue;
         }
 
@@ -69,6 +69,8 @@ function lastIndexOfArr(hay: Uint8Array, needle: Uint8Array, off: number | undef
         if (match) {
             break;
         }
+
+        res--;
     }
 
     return res;
@@ -86,7 +88,7 @@ function getAllBuffersAfterPrefix(
     while (true) {
         off = lastIndexOfArr(hay, prefix, off - 1);
 
-        if (off === -1) {
+        if (off < 0) {
             return res;
         }
 

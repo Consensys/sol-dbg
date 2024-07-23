@@ -1,12 +1,18 @@
 {
-    "roots": [""],
+    "roots": ["<rootDir>"],
     "testMatch": ["**/test/**/*.spec.ts"],
     "moduleDirectories": ["node_modules"],
+    "moduleNameMapper": {
+        "@ethereumjs/evm/dist/cjs/evm": "<rootDir>/node_modules/@ethereumjs/evm/dist/cjs/evm",
+        "@ethereumjs/evm/dist/cjs/exceptions": "<rootDir>/node_modules/@ethereumjs/evm/dist/cjs/exceptions",
+        "@ethereumjs/evm/dist/cjs/interpreter": "<rootDir>/node_modules/@ethereumjs/evm/dist/cjs/interpreter",
+        "@ethereumjs/evm/dist/cjs/opcodes": "<rootDir>/node_modules/@ethereumjs/evm/dist/cjs/opcodes"
+    },
     "transform": {
         "^.+\\.ts$": "ts-jest"
     },
 
-    "testTimeout": 200000,
+    "testTimeout": 2000,
     "verbose": true,
 
     "coveragePathIgnorePatterns": ["/node_modules/", "/test/", "/coverage/", "/.compiler_cache/"],

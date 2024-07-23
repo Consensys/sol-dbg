@@ -26,8 +26,5 @@
     },
 
     "include": ["src/**/*"],
-    "exclude": [
-        "src/faash/command_lang/parser_header.ts",
-        "src/faash/partial_command_lang/parser_header.ts"
-    ]
+    "exclude": [ ]
 }

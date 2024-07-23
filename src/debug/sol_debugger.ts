@@ -1,16 +1,12 @@
-import { Block } from "@ethereumjs/block/dist/cjs";
-import { Blockchain } from "@ethereumjs/blockchain/dist/cjs";
-import { Chain, Common, Hardfork } from "@ethereumjs/common/dist/cjs";
-import { EVMStateManagerInterface } from "@ethereumjs/common/src";
-import { InterpreterStep } from "@ethereumjs/evm/dist/cjs";
-import { EVM } from "@ethereumjs/evm/dist/cjs/evm";
-import { getOpcodesForHF } from "@ethereumjs/evm/dist/cjs/opcodes";
-import { EVMOpts } from "@ethereumjs/evm/dist/cjs/types";
-import { RLP } from "@ethereumjs/rlp/dist/cjs";
-import { DefaultStateManager } from "@ethereumjs/statemanager/dist/cjs";
-import { TypedTransaction } from "@ethereumjs/tx/dist/cjs/types";
-import { Address, setLengthLeft } from "@ethereumjs/util/dist/cjs";
-import { RunTxResult, VM } from "@ethereumjs/vm/dist/cjs";
+import { Block } from "@ethereumjs/block";
+import { Blockchain } from "@ethereumjs/blockchain";
+import { Chain, Common, EVMStateManagerInterface, Hardfork } from "@ethereumjs/common";
+import { EVM, InterpreterStep, getOpcodesForHF } from "@ethereumjs/evm";
+import { RLP } from "@ethereumjs/rlp";
+import { DefaultStateManager } from "@ethereumjs/statemanager";
+import { TypedTransaction } from "@ethereumjs/tx";
+import { Address, setLengthLeft } from "@ethereumjs/util";
+import { RunTxResult, VM } from "@ethereumjs/vm";
 import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
 import {
     ASTNode,
@@ -44,190 +40,25 @@ import {
     setFoundryCtx
 } from "./foundry_cheatcodes";
 import { foundryInterposedOps } from "./opcode_interposing";
+import { OPCODES, changesMemory, createsContract, getOpInfo, increasesDepth } from "./opcodes";
 import {
-    EVMOpInfo,
-    OPCODES,
-    changesMemory,
-    createsContract,
-    getOpInfo,
-    increasesDepth
-} from "./opcodes";
-
-export enum FrameKind {
-    Call = "call",
-    Creation = "creation",
-    InternalCall = "internal_call"
-}
-
-/**
- * Base interface for Stack frames maintained by the debugger
- */
-interface BaseFrame {
-    readonly kind: FrameKind;
-    /**
-     * AST node causing the call. Note that this is not always a FunctionCall. For example this could be:
-     * 1. A contract public state var VariableDeclaration
-     * 2. Any checked arithmetic operation in sol > 0.8.0 (these are implemented as internal functions)
-     * 3. Some other random non-call AST node, that is implemented as a compiler generated function
-     */
-    readonly callee: ASTNode | undefined;
-    /**
-     * If we have a `callee` try and infer where the arguments are placed in the VM state. Some arguments may not
-     * exist in the case of msg.data generated from a fuzzer for example.
-     */
-    readonly arguments: Array<[string, DataView | undefined]> | undefined;
-    readonly startStep: number;
-}
-
-/**
- * Base class for a stack frame corresponding to an external call.
- */
-interface BaseExternalFrame extends BaseFrame {
-    readonly sender: HexString;
-    readonly msgData: Uint8Array;
-    readonly address: Address;
-}
-
-/**
- * Stack frame corresponding to an external call
- */
-interface CallFrame extends BaseExternalFrame {
-    readonly kind: FrameKind.Call;
-    readonly receiver: HexString;
-    readonly code: Uint8Array;
-    readonly info?: ContractInfo;
-}
-
-/**
- * Stack frame corresponding to a contract creation call
- */
-interface CreationFrame extends BaseExternalFrame {
-    readonly kind: FrameKind.Creation;
-    readonly creationCode: Uint8Array;
-    readonly info?: ContractInfo;
-}
-
-/**
- * Stack frame corresponding to an internal function call
- */
-interface InternalCallFrame extends BaseFrame {
-    readonly kind: FrameKind.InternalCall;
-    readonly nearestExtFrame: CallFrame | CreationFrame;
-    readonly offset: number;
-}
-
-export type ExternalFrame = CallFrame | CreationFrame;
-export type Frame = ExternalFrame | InternalCallFrame;
-export type DbgStack = Frame[];
-
-export enum DataLocationKind {
-    Stack = "stack",
-    Memory = "memory",
-    Storage = "storage",
-    CallData = "calldata"
-}
-
-export type MemoryLocationKind =
-    | DataLocationKind.Memory
-    | DataLocationKind.CallData
-    | DataLocationKind.Storage;
-
-export interface BaseDataLocation {
-    kind: DataLocationKind;
-}
-
-export interface StackLocation extends BaseDataLocation {
-    kind: DataLocationKind.Stack;
-    offsetFromTop: number;
-}
-
-export interface BaseMemoryLocation extends BaseDataLocation {
-    address: bigint;
-}
-
-export interface CalldataLocation extends BaseMemoryLocation {
-    kind: DataLocationKind.CallData;
-}
-
-export interface LinearMemoryLocation extends BaseMemoryLocation {
-    kind: DataLocationKind.Memory;
-}
-
-export interface StorageLocation extends BaseMemoryLocation {
-    kind: DataLocationKind.Storage;
-    endOffsetInWord: number;
-}
-
-export type ByteAddressableMemoryLocation = CalldataLocation | LinearMemoryLocation;
-export type MemoryLocation = ByteAddressableMemoryLocation | StorageLocation;
-export type DataLocation = StackLocation | MemoryLocation;
-
-export interface DataView {
-    type: TypeNode;
-    abiType?: TypeNode;
-    loc: DataLocation;
-}
-
-export type Memory = Uint8Array;
-export type Stack = Uint8Array[];
-export type Storage = ImmMap<bigint, Uint8Array>;
-export interface EventDesc {
-    payload: Uint8Array;
-    topics: bigint[];
-}
-
-/**
- * TODO(dimo): Make memory and storage be computed only for instructions that change them, and for all other
- * instructions alias the previous steps' memory/storage
- *
- * Low-level machine state at a given trace step. It directly mirrors the state reported from Web3
- * and doesn't include any higher-level information that requires debug info.
- */
-export interface StepVMState {
-    evmStack: Stack;
-    memory: Memory;
-    storage: Storage;
-    op: EVMOpInfo;
-    pc: number;
-    gasCost: bigint;
-    dynamicGasCost: bigint;
-    gas: bigint;
-    depth: number;
-    address: Address;
-    codeAddress: Address;
-}
-
-/**
- * State that the debugger maintains for each trace step.
- * It includes the basic VM state (`StepVmState`) and optionally (if we have debug info for this contract)
- * includes the decoded source location, any AST nodes that are mapped to this instruction and any events
- * that may be emitted on this step.
- */
-export interface StepState extends StepVMState {
-    code: Uint8Array;
-    codeMdHash: HexString | undefined;
-    stack: DbgStack;
-    src: DecodedBytecodeSourceMapEntry | undefined;
-    astNode: ASTNode | undefined;
-    emittedEvent: EventDesc | undefined;
-    contractInfo: ContractInfo | undefined;
-}
-
-/**
- * Trace step struct contained in the array returned by web3.debug.traceTransaction().
- * We translate this into `StepVmState`.
- */
-export interface Web3DbgState {
-    stack: HexString[];
-    memory: HexString[];
-    storage?: any;
-    op: string;
-    pc: number;
-    gasCost: string;
-    gas: string;
-    depth: number;
-    error?: any;
-}
+    CallFrame,
+    CreationFrame,
+    DataLocationKind,
+    DataView,
+    DbgStack,
+    EVMOpts,
+    EventDesc,
+    ExternalFrame,
+    Frame,
+    FrameKind,
+    InternalCallFrame,
+    Memory,
+    Stack,
+    StepState,
+    StepVMState,
+    Storage
+} from "./types";
 
 // Helper functions
 
@@ -255,7 +86,7 @@ async function getStorage(manager: EVMStateManagerInterface, addr: Address): Pro
         assert(decoded instanceof Uint8Array, "");
         const valBuf = setLengthLeft(decoded, 32);
 
-        storageEntries.push([BigInt("0x" + keyStr), valBuf]);
+        storageEntries.push([BigInt(keyStr), valBuf]);
     }
 
     return ImmMap.fromEntries(storageEntries);
@@ -516,25 +347,39 @@ export class SolTxDebugger {
 
         let code: Uint8Array;
         let codeMdHash: HexString | undefined;
+        const getCodeAddress = (s: StepVMState): Address =>
+            s.codeAddress !== undefined ? s.codeAddress : s.address;
 
-        if (lastStep !== undefined && createsContract(lastStep.op)) {
+        // Case 1: First step in the trace
+        if (lastStep === undefined) {
+            const code = await vm.stateManager.getContractCode(getCodeAddress(step));
+            const codeMdHash = getCodeHash(code);
+            return [code, codeMdHash];
+        }
+
+        // Case 2: Just entering a constructor from another contract
+        if (createsContract(lastStep.op)) {
             const lastStackTop = lastStep.evmStack.length - 1;
 
             const off = bigEndianBufToNumber(lastStep.evmStack[lastStackTop - 1]);
             const size = bigEndianBufToNumber(lastStep.evmStack[lastStackTop - 2]);
 
-            code = lastStep.memory.slice(off, off + size);
-
-            codeMdHash = getCreationCodeHash(code);
-        } else if (lastStep === undefined || !lastStep.codeAddress.equals(step.codeAddress)) {
-            code = await vm.stateManager.getContractCode(step.codeAddress);
-
-            codeMdHash = getCodeHash(code);
-        } else {
-            code = lastStep.code;
-
-            codeMdHash = lastStep.codeMdHash;
+            const code = lastStep.memory.slice(off, off + size);
+            const codeMdHash = getCreationCodeHash(code);
+            return [code, codeMdHash];
         }
+
+        // Case 3: The code changed - either we are in a different contract or a delegate call context
+        if (!getCodeAddress(lastStep).equals(getCodeAddress(step))) {
+            // Case 3: We are changing the code address
+            code = await vm.stateManager.getContractCode(getCodeAddress(step));
+            codeMdHash = getCodeHash(code);
+            return [code, codeMdHash];
+        }
+
+        // Case 4: We are still in the same contract
+        code = lastStep.code;
+        codeMdHash = lastStep.codeMdHash;
 
         return [code, codeMdHash];
     }
@@ -715,7 +560,10 @@ export class SolTxDebugger {
         block: Block | undefined,
         stateManager: EVMStateManagerInterface
     ): Promise<[StepState[], RunTxResult]> {
-        const vm = await SolTxDebugger.createVm(stateManager, this.foundryCheatcodes);
+        const vm = await SolTxDebugger.createVm(
+            stateManager.shallowCopy(true),
+            this.foundryCheatcodes
+        );
 
         const sender = tx.getSenderAddress().toString();
         const receiver = tx.to === undefined ? ZERO_ADDRESS_STRING : tx.to.toString();
