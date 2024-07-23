@@ -8,14 +8,7 @@ import { TypedTransaction } from "@ethereumjs/tx";
 import { Address, setLengthLeft } from "@ethereumjs/util";
 import { RunTxResult, VM } from "@ethereumjs/vm";
 import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
-import {
-    ASTNode,
-    FunctionDefinition,
-    StateVariableVisibility,
-    TypeNode,
-    VariableDeclaration,
-    assert
-} from "solc-typed-ast";
+import { ASTNode, FunctionDefinition, TypeNode, VariableDeclaration, assert } from "solc-typed-ast";
 import { EventEmitter } from "stream";
 import {
     DecodedBytecodeSourceMapEntry,
@@ -25,12 +18,11 @@ import {
     ZERO_ADDRESS,
     ZERO_ADDRESS_STRING,
     bigEndianBufToBigint,
-    getFunctionSelector,
     wordToAddress
 } from "..";
 import { getCodeHash, getCreationCodeHash } from "../artifacts";
 import { bigEndianBufToNumber, bigIntToBuf } from "../utils";
-import { buildMsgDataViews } from "./abi";
+import { buildMsgDataViews, findMethodBySelector } from "./abi";
 import { ContractInfo, IArtifactManager, getOffsetSrc } from "./artifact_manager";
 import { isCalldataType2Slots } from "./decoding";
 import {
@@ -664,37 +656,7 @@ export class SolTxDebugger {
         const contract = info.ast;
         const infer = this.artifactManager.infer(info.artifact.compilerVersion);
 
-        for (const base of contract.vLinearizedBaseContracts) {
-            // Need to be defensive here, as in some cases with partial AST information the base may be missing
-            if (base === undefined) {
-                continue;
-            }
-
-            const matchingFuns = base.vFunctions.filter(
-                (fun: FunctionDefinition) => getFunctionSelector(fun, infer) === selector
-            );
-
-            if (matchingFuns.length === 1) {
-                return matchingFuns[0];
-            }
-
-            const matchingGetters = base.vStateVariables.filter((vDef: VariableDeclaration) => {
-                try {
-                    return (
-                        vDef.visibility === StateVariableVisibility.Public &&
-                        infer.signatureHash(vDef)
-                    );
-                } catch (e) {
-                    return false;
-                }
-            });
-
-            if (matchingGetters.length === 1) {
-                return matchingGetters[0];
-            }
-        }
-
-        return undefined;
+        return findMethodBySelector(selector, contract, infer);
     }
 
     /**

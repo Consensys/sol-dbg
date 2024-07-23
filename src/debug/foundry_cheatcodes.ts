@@ -7,9 +7,9 @@ import {
     setLengthRight
 } from "@ethereumjs/util";
 import { keccak256 } from "ethereum-cryptography/keccak.js";
-import { bytesToHex, utf8ToBytes } from "ethereum-cryptography/utils";
+import { bytesToHex, concatBytes, equalsBytes, utf8ToBytes } from "ethereum-cryptography/utils";
 import EventEmitter from "events";
-import { bigEndianBufToBigint, bigIntToBuf, uint8ArrConcat, uint8ArrEq } from "../utils";
+import { bigEndianBufToBigint, bigIntToBuf } from "../utils";
 
 const EVM_MOD = require("@ethereumjs/evm/dist/cjs/evm");
 const EvmErrorResult = EVM_MOD.EvmErrorResult;
@@ -72,7 +72,7 @@ export const FoundryCheatcodesAddress = Address.fromString(
 );
 
 function getSelector(signature: string): Uint8Array {
-    return keccak256(new TextEncoder().encode(signature)).slice(0, 4);
+    return keccak256(utf8ToBytes(signature)).slice(0, 4);
 }
 
 export const WARP_SELECTOR = getSelector("warp(uint256)");
@@ -94,7 +94,7 @@ export const EXPECT_REVERT_SELECTOR03 = getSelector("expectRevert(bytes)");
 export const FAIL_LOC = bytesToHex(setLengthRight(utf8ToBytes("failed"), 32));
 
 export const FAIL_MSG_DATA = bytesToHex(
-    uint8ArrConcat(
+    concatBytes(
         getSelector("store(address,bytes32,bytes32)"),
         setLengthLeft(FoundryCheatcodesAddress.toBytes(), 32),
         setLengthRight(utf8ToBytes("failed"), 32),
@@ -156,10 +156,10 @@ export function returnStateMatchesRevert(
     let actualBytes: Uint8Array;
 
     // This looks like an Error(string) encoded message. Extract the inner string/bytes
-    if (excDataSize >= 4n && uint8ArrEq(excData.slice(0, 4), ERROR_PREFIX)) {
+    if (excDataSize >= 4n && equalsBytes(excData.slice(0, 4), ERROR_PREFIX)) {
         try {
             const errMsg = ethABI.decodeParameters(["string"], bytesToHex(excData.slice(4)))[0];
-            actualBytes = new TextEncoder().encode(errMsg);
+            actualBytes = utf8ToBytes(errMsg);
         } catch {
             actualBytes = excData;
         }
@@ -168,7 +168,7 @@ export function returnStateMatchesRevert(
     }
 
     // Specific exception bytes are expected
-    return uint8ArrEq(actualBytes, expected);
+    return equalsBytes(actualBytes, expected);
 }
 
 /**
@@ -343,7 +343,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
     ): Promise<ExecResult> {
         const selector = input.data.slice(0, 4);
 
-        if (uint8ArrEq(selector, WARP_SELECTOR)) {
+        if (equalsBytes(selector, WARP_SELECTOR)) {
             const newTime = BigInt(
                 ethABI.decodeParameters(["uint256"], bytesToHex(input.data.slice(4)))[0]
             );
@@ -356,7 +356,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             };
         }
 
-        if (uint8ArrEq(selector, ROLL_SELECTOR)) {
+        if (equalsBytes(selector, ROLL_SELECTOR)) {
             const newBlockNum = BigInt(
                 ethABI.decodeParameters(["uint256"], bytesToHex(input.data.slice(4)))[0]
             );
@@ -369,7 +369,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             };
         }
 
-        if (uint8ArrEq(selector, LOAD_SELECTOR)) {
+        if (equalsBytes(selector, LOAD_SELECTOR)) {
             //console.error(`load(${rawAddr}, ${rawLoc})`);
             let value = await input._EVM.stateManager.getContractStorage(
                 new Address(input.data.slice(16, 36)),
@@ -386,7 +386,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             };
         }
 
-        if (uint8ArrEq(selector, STORE_SELECTOR)) {
+        if (equalsBytes(selector, STORE_SELECTOR)) {
             const addr = new Address(input.data.slice(16, 36));
             const loc = input.data.slice(36, 68);
             const value = input.data.slice(68, 100);
@@ -417,7 +417,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             };
         }
 
-        if (uint8ArrEq(selector, SIGN_SELECTOR)) {
+        if (equalsBytes(selector, SIGN_SELECTOR)) {
             const pk = input.data.slice(4, 36);
             const digest = input.data.slice(36, 68);
 
@@ -429,11 +429,11 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
 
             return {
                 executionGasUsed: 0n,
-                returnValue: uint8ArrConcat(v, r, s)
+                returnValue: concatBytes(v, r, s)
             };
         }
 
-        if (uint8ArrEq(selector, ADDR_SELECTOR)) {
+        if (equalsBytes(selector, ADDR_SELECTOR)) {
             const pk = input.data.slice(4, 36);
             const addr = setLengthLeft(privateToAddress(pk), 32);
 
@@ -443,7 +443,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             };
         }
 
-        if (uint8ArrEq(selector, DEAL_SELECTOR)) {
+        if (equalsBytes(selector, DEAL_SELECTOR)) {
             const addr = new Address(input.data.slice(16, 36));
             const newBalance = "0x" + bytesToHex(input.data.slice(36, 68));
 
@@ -461,7 +461,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             };
         }
 
-        if (uint8ArrEq(selector, PRANK_SELECTOR01)) {
+        if (equalsBytes(selector, PRANK_SELECTOR01)) {
             // Foundry doesn't allow multiple concurrent pranks
             if (ctx.getPendingPrank() !== undefined) {
                 return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
@@ -480,7 +480,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             };
         }
 
-        if (uint8ArrEq(selector, PRANK_SELECTOR02)) {
+        if (equalsBytes(selector, PRANK_SELECTOR02)) {
             // Foundry doesn't allow multiple concurrent pranks
             if (ctx.getPendingPrank() !== undefined) {
                 return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
@@ -504,7 +504,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             };
         }
 
-        if (uint8ArrEq(selector, START_PRANK_SELECTOR01)) {
+        if (equalsBytes(selector, START_PRANK_SELECTOR01)) {
             // Foundry doesn't allow multiple concurrent pranks
             if (ctx.getPendingPrank() !== undefined) {
                 return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
@@ -524,7 +524,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             };
         }
 
-        if (uint8ArrEq(selector, START_PRANK_SELECTOR02)) {
+        if (equalsBytes(selector, START_PRANK_SELECTOR02)) {
             // Foundry doesn't allow multiple concurrent pranks
             if (ctx.getPendingPrank() !== undefined) {
                 return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
@@ -550,7 +550,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             };
         }
 
-        if (uint8ArrEq(selector, STOP_PRANK_SELECTOR)) {
+        if (equalsBytes(selector, STOP_PRANK_SELECTOR)) {
             ctx.clearPranks();
 
             //console.error(`stopPrank()`);
@@ -560,7 +560,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             };
         }
 
-        if (uint8ArrEq(selector, EXPECT_REVERT_SELECTOR01)) {
+        if (equalsBytes(selector, EXPECT_REVERT_SELECTOR01)) {
             //console.error(`vm.expectRevert();`);
             ctx.expectRevert(true);
             return {
@@ -569,7 +569,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             };
         }
 
-        if (uint8ArrEq(selector, EXPECT_REVERT_SELECTOR02)) {
+        if (equalsBytes(selector, EXPECT_REVERT_SELECTOR02)) {
             //console.error(`vm.expectRevert(bytes4);`);
             if (input.data.length < 8) {
                 return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
@@ -584,7 +584,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
             };
         }
 
-        if (uint8ArrEq(selector, EXPECT_REVERT_SELECTOR03)) {
+        if (equalsBytes(selector, EXPECT_REVERT_SELECTOR03)) {
             if (input.data.length < 68) {
                 return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
             }

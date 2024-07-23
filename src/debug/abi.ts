@@ -13,6 +13,7 @@ import {
     MappingType,
     PointerType,
     DataLocation as SolDataLocation,
+    StateVariableVisibility,
     StringType,
     StructDefinition,
     TupleType,
@@ -369,4 +370,41 @@ export function isABITypeStaticSized(type: TypeNode): boolean {
     }
 
     throw new Error(`NYI isABITypeStaticSized(${type.pp()})`);
+}
+
+/**
+ * Given a 4-byte selector, a target contract and an `InferType` object return
+ * the ASTNode that corresponds to the target callee. Must be either a
+ * `FunctionDefinition`, a `VariableDeclaration` (for public state var getters),
+ * or undefined (if we cannot identify it)
+ */
+export function findMethodBySelector(
+    selector: Uint8Array | string,
+    contract: ContractDefinition,
+    infer: InferType
+): FunctionDefinition | VariableDeclaration | undefined {
+    const strSelector = typeof selector === "string" ? selector : bytesToHex(selector);
+
+    for (const base of contract.vLinearizedBaseContracts) {
+        if (!base) {
+            continue;
+        }
+
+        for (const fun of base.vFunctions) {
+            const funSel = getFunctionSelector(fun, infer);
+            if (funSel == strSelector) {
+                return fun;
+            }
+        }
+
+        for (const v of base.vStateVariables) {
+            if (
+                v.visibility === StateVariableVisibility.Public &&
+                infer.signatureHash(v) == strSelector
+            ) {
+                return v;
+            }
+        }
+    }
+    return undefined;
 }
