@@ -10,7 +10,6 @@ import {
     ContractInfo,
     getContractInfo,
     lastExternalFrame,
-    lsJson,
     PartialSolcOutput,
     SolTxDebugger,
     SourceFileInfo,
@@ -23,6 +22,7 @@ import {
     getFoundryCtx
 } from "../../src/debug/foundry_cheatcodes";
 import { ppStackTrace, ResultKind, TestCase, TestStep, VMTestRunner } from "../../src/utils";
+import { lsJson } from "../utils";
 
 /**
  * Find the last step in the non-internal code, before trace step i

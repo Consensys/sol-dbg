@@ -2,8 +2,6 @@ import { Common } from "@ethereumjs/common";
 import { TransactionFactory, TypedTransaction, TypedTxData } from "@ethereumjs/tx";
 import { Address, setLengthLeft } from "@ethereumjs/util";
 import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
-import fse from "fs-extra";
-import { join } from "path";
 import {
     ContractDefinition,
     FunctionDefinition,
@@ -111,33 +109,6 @@ export function resolveConstructor(contract: ContractDefinition): FunctionDefini
     return undefined;
 }
 
-export function ls(dir: string, ext: string): string[] {
-    return fse
-        .readdirSync(dir)
-        .filter((name) => name.endsWith(ext))
-        .map((name) => join(dir, name));
-}
-
-export function lsJson(path: string): string[] {
-    return ls(path, ".json");
-}
-
-export function isDir(path: string): boolean {
-    try {
-        return fse.statSync(path).isDirectory();
-    } catch (e) {
-        return false;
-    }
-}
-
-export function isFile(path: string): boolean {
-    try {
-        return fse.statSync(path).isFile();
-    } catch (e) {
-        return false;
-    }
-}
-
 /**
  * Return the (inclusive) limits of a 2's complement int type as a pair `[min, max]` `bigint`s
  */
@@ -158,6 +129,7 @@ export function fits(val: bigint, typ: IntType): boolean {
     return val >= min && val <= max;
 }
 
+/* istanbul ignore next */
 export function ppLoc(loc: DataLocation): string {
     return `{kind: ${loc.kind}, ${
         loc.kind === DataLocationKind.Stack ? "offsetFromTop" : "address"
@@ -166,12 +138,14 @@ export function ppLoc(loc: DataLocation): string {
     }`;
 }
 
+/* istanbul ignore next */
 export function ppView(view: DataView): string {
     return `{type: ${view.type.pp()}, abiType: ${
         view.abiType ? view.abiType.pp() : "undefined"
     }, loc: ${ppLoc(view.loc)}}`;
 }
 
+/* istanbul ignore next */
 export function ppStorage(storage: Storage): string {
     const data: { [key: UnprefixedHexString]: UnprefixedHexString } = {};
 
@@ -182,6 +156,7 @@ export function ppStorage(storage: Storage): string {
     return JSON.stringify(data, undefined, 4) + "\n";
 }
 
+/* istanbul ignore next */
 export function ppEvmStack(stack: Stack): string {
     return stack.map((word) => bytesToHex(word)).join("\n");
 }
@@ -249,10 +224,6 @@ export function bigEndianBufToNumber(buf: Uint8Array): number {
     );
 
     return Number(bigintRes);
-}
-
-export function stripOx(s: HexString): UnprefixedHexString {
-    return s.startsWith("0x") ? s.slice(2) : s;
 }
 
 export function getFunctionSelector(
