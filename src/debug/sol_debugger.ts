@@ -9,7 +9,6 @@ import { Address, setLengthLeft } from "@ethereumjs/util";
 import { RunTxResult, VM } from "@ethereumjs/vm";
 import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
 import { ASTNode, FunctionDefinition, TypeNode, VariableDeclaration, assert } from "solc-typed-ast";
-import { EventEmitter } from "stream";
 import {
     DecodedBytecodeSourceMapEntry,
     HexString,
@@ -27,9 +26,8 @@ import { ContractInfo, IArtifactManager, getOffsetSrc } from "./artifact_manager
 import { isCalldataType2Slots } from "./decoding";
 import {
     FoundryCheatcodesAddress,
-    interpRunListeners,
-    makeFoundryCheatcodePrecompile,
-    setFoundryCtx
+    foundryCtxMap,
+    makeFoundryCheatcodePrecompile
 } from "./foundry_cheatcodes";
 import { foundryInterposedOps } from "./opcode_interposing";
 import { OPCODES, changesMemory, createsContract, getOpInfo, increasesDepth } from "./opcodes";
@@ -492,12 +490,7 @@ export class SolTxDebugger {
         };
 
         const res = await EVM.create(optsCopy);
-
-        const emitter = new EventEmitter();
-        emitter.on("beforeInterpRun", foundryCtx.beforeInterpRunCB.bind(foundryCtx));
-        emitter.on("afterInterpRun", foundryCtx.afterInterpRunCB.bind(foundryCtx));
-        interpRunListeners.set(res, emitter);
-        setFoundryCtx(res, foundryCtx);
+        foundryCtxMap.set(res, foundryCtx);
         return res;
     }
 
@@ -512,7 +505,7 @@ export class SolTxDebugger {
         const evm = vmToEVMMap.get(vm);
 
         if (evm) {
-            interpRunListeners.delete(evm);
+            foundryCtxMap.delete(evm);
         }
 
         vmToEVMMap.delete(vm);

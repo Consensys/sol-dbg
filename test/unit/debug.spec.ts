@@ -1,3 +1,4 @@
+import { EVM, EVMInterface } from "@ethereumjs/evm";
 import { DefaultStateManager } from "@ethereumjs/statemanager";
 import { RunTxResult, VM } from "@ethereumjs/vm";
 import { bytesToHex } from "ethereum-cryptography/utils";
@@ -19,11 +20,17 @@ import {
 import {
     FAIL_MSG_DATA,
     FoundryCheatcodesAddress,
-    getFoundryCtx
+    FoundryContext,
+    foundryCtxMap
 } from "../../src/debug/foundry_cheatcodes";
 import { ppStackTrace, ResultKind, TestCase, TestStep, VMTestRunner } from "../../src/utils";
 import { lsJson } from "../utils";
 
+function getFoundryCtx(evm: EVMInterface): FoundryContext {
+    const res = foundryCtxMap.get(evm as EVM);
+    assert(res !== undefined, "");
+    return res;
+}
 /**
  * Find the last step in the non-internal code, before trace step i
  */

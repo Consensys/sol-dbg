@@ -1,20 +1,14 @@
 import { Common } from "@ethereumjs/common";
 import { Address, bigIntToBytes, setLengthLeft } from "@ethereumjs/util";
 import { bigEndianBufToBigint } from "../utils";
+import { createAddressFromStackBigInt, trap, writeCallOutput } from "../utils/ethereumjs_internal";
+import { ERROR } from "../utils/ethereumjs_internal/exceptions";
 import {
     FoundryCheatcodesAddress,
     FoundryContext,
     RevertMatch,
     returnStateMatchesRevert
 } from "./foundry_cheatcodes";
-
-const EXCEPTION_MOD = require("@ethereumjs/evm/dist/cjs/exceptions");
-const ERROR = EXCEPTION_MOD.ERROR;
-
-const OPCODES_MOD = require("@ethereumjs/evm/dist/cjs/opcodes");
-const addresstoBytes = OPCODES_MOD.addresstoBytes;
-const trap = OPCODES_MOD.trap;
-const writeCallOutput = OPCODES_MOD.writeCallOutput;
 
 /// require(@ethereumjs/evm/dist/cjs/types).AddOpcode
 type AddOpcode = any;
@@ -167,7 +161,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
                 const [, toAddr, value, inOffset, inLength, outOffset, outLength] =
                     runState.stack.popN(7);
 
-                const toAddress = new Address(addresstoBytes(toAddr));
+                const toAddress = createAddressFromStackBigInt(toAddr);
 
                 const expectedRevert = getExpectedRevert(foundryCtx, toAddress);
 
@@ -202,7 +196,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
             async function (runState: RunState) {
                 const [, toAddr, value, inOffset, inLength, outOffset, outLength] =
                     runState.stack.popN(7);
-                const toAddress = new Address(addresstoBytes(toAddr));
+                const toAddress = createAddressFromStackBigInt(toAddr);
                 const expectedRevert = getExpectedRevert(foundryCtx, toAddress);
 
                 const gasLimit = runState.messageGasLimit!;
@@ -224,7 +218,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
             async function (runState: RunState) {
                 const value = runState.interpreter.getCallValue();
                 const [, toAddr, inOffset, inLength, outOffset, outLength] = runState.stack.popN(6);
-                const toAddress = new Address(addresstoBytes(toAddr));
+                const toAddress = createAddressFromStackBigInt(toAddr);
                 const expectedRevert = getExpectedRevert(foundryCtx, toAddress);
 
                 let data = new Uint8Array(0);
@@ -251,7 +245,7 @@ export function foundryInterposedOps(opcodes: any, foundryCtx: FoundryContext): 
             async function (runState: RunState) {
                 const value = BigInt(0);
                 const [, toAddr, inOffset, inLength, outOffset, outLength] = runState.stack.popN(6);
-                const toAddress = new Address(addresstoBytes(toAddr));
+                const toAddress = createAddressFromStackBigInt(toAddr);
                 const expectedRevert = getExpectedRevert(foundryCtx, toAddress);
 
                 const gasLimit = runState.messageGasLimit!;
