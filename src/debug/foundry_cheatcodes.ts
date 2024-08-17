@@ -1,4 +1,4 @@
-import { EVM, EVMInterface, ExecResult, PrecompileInput } from "@ethereumjs/evm";
+import { EVM, EvmError, ExecResult, Message, PrecompileInput } from "@ethereumjs/evm";
 import {
     Account,
     Address,
@@ -8,60 +8,43 @@ import {
 } from "@ethereumjs/util";
 import { keccak256 } from "ethereum-cryptography/keccak.js";
 import { bytesToHex, concatBytes, equalsBytes, utf8ToBytes } from "ethereum-cryptography/utils";
-import EventEmitter from "events";
 import { bigEndianBufToBigint, bigIntToBuf } from "../utils";
-
-const EVM_MOD = require("@ethereumjs/evm/dist/cjs/evm");
-const EvmErrorResult = EVM_MOD.EvmErrorResult;
-
-const EXCEPTION_MOD = require("@ethereumjs/evm/dist/cjs/exceptions");
-const ERROR = EXCEPTION_MOD.ERROR;
-const EvmError = EXCEPTION_MOD.EvmError;
-
-/// require("@ethereumjs/evm/dist/cjs/interpreter").Env
-type Env = any;
-/// require("@ethereumjs/evm/dist/cjs/interpreter").InterpreterOpts
-type InterpreterOpts = any;
-/// require("@ethereumjs/evm/dist/cjs/interpreter").InterpreterResult
-type InterpreterResult = any;
-
-const INTERPRETER_MOD = require("@ethereumjs/evm/dist/cjs/interpreter");
-const Interpreter = INTERPRETER_MOD.Interpreter;
+import { ERROR, EvmErrorResult } from "../utils/ethereumjs_internal/exceptions";
 
 /// require("@ethereumjs/evm/dist/cjs/precompiles").PrecompileFunc
 type PrecompileFunc = any;
 /// require("@ethereumjs/evm/dist/cjs/precompiles").RunState
 type RunState = any;
-/*
- * Hotpatch Interpreter.run so we can keep track of the runtime relationships between EEIs.
- * We use this to track when one call context is a child of another, which helps us scope pranks
- */
-const oldRun = Interpreter.prototype.run;
 /**
  * Each test/cases/debug session is associated with a unique VM. And there are
  * multiple interpreter instances per VM. We keep 1 event emitter per VM, so
  * that after we are done working with some VM, we don't unnecessarily invoke
  * its callbacks.
  */
-export const interpRunListeners = new Map<EVM, EventEmitter>();
+export const foundryCtxMap = new Map<EVM, FoundryContext>();
 
-Interpreter.prototype.run = async function (
-    code: Uint8Array,
-    opts?: InterpreterOpts
-): Promise<InterpreterResult> {
-    const vm = this._evm;
-    const emitter = interpRunListeners.get(vm);
+const oldRunMsgFun = (EVM.prototype as any).runInterpreter;
 
-    if (emitter) emitter.emit("beforeInterpRun", this);
-    const res = oldRun.bind(this)(code, opts);
+(EVM.prototype as any).runInterpreter = async function hookedRunInterpreter(
+    message: Message,
+    opts: any
+): Promise<ExecResult> {
+    const ctx = foundryCtxMap.get(this);
 
-    const wrappedPromise = res.then((interpRes: InterpreterResult) => {
-        if (emitter) emitter.emit("afterInterpRun", this);
+    if (ctx) {
+        ctx.beforeInterpRunCB(message);
+    }
 
-        return interpRes;
+    const res = oldRunMsgFun.bind(this)(message, opts);
+
+    const wrappedRes = res.then((res: ExecResult) => {
+        if (ctx) {
+            ctx.afterInterpRunCB();
+        }
+        return res;
     });
 
-    return wrappedPromise;
+    return wrappedRes;
 };
 
 const { secp256k1 } = require("ethereum-cryptography/secp256k1");
@@ -101,6 +84,12 @@ export const FAIL_MSG_DATA = bytesToHex(
         setLengthLeft(new Uint8Array([1]), 32)
     )
 );
+
+interface PrankCallFrame extends Message {
+    expectedRevertDesc: RevertMatch | undefined;
+    pendingPrank: FoundryPrank | undefined;
+    pranks: FoundryPrank[] | undefined;
+}
 
 export interface FoundryPrank {
     sender: Address;
@@ -188,7 +177,7 @@ export class FoundryContext {
             return undefined;
         }
 
-        (this.getEnv() as any).expectedRevertDesc = match;
+        this.getEnv().expectedRevertDesc = match;
     }
 
     public getExpectedRevert(): RevertMatch {
@@ -196,7 +185,7 @@ export class FoundryContext {
             return undefined;
         }
 
-        return (this.getEnv() as any).expectedRevertDesc;
+        return this.getEnv().expectedRevertDesc;
     }
 
     /**
@@ -205,10 +194,10 @@ export class FoundryContext {
      * objects, as there is a unique EEI object for each external call in the
      * trace, and pranks are scoped to external calls.
      */
-    private envStack: Env[] = [];
+    private envStack: PrankCallFrame[] = [];
 
     // Get the current (topmost) EEI object
-    public getEnv(): Env {
+    public getEnv(): PrankCallFrame {
         return this.envStack[this.envStack.length - 1];
     }
 
@@ -218,7 +207,7 @@ export class FoundryContext {
             return undefined;
         }
 
-        return (this.getEnv() as any).pendingPrank;
+        return this.getEnv().pendingPrank;
     }
 
     // Set the pending prank for the current call frame
@@ -227,7 +216,7 @@ export class FoundryContext {
             return undefined;
         }
 
-        (this.getEnv() as any).pendingPrank = prank;
+        this.getEnv().pendingPrank = prank;
     }
 
     /**
@@ -235,8 +224,8 @@ export class FoundryContext {
      * Note that for flexibility we allow more than 1 prank, but in practice
      * foundry restricts this to only 1 prank at a time.
      */
-    private getPranks(eei: Env): FoundryPrank[] {
-        const pranks = (eei as any).pranks;
+    private getPranks(frame: PrankCallFrame): FoundryPrank[] {
+        const pranks = frame.pranks;
 
         if (pranks === undefined) {
             return [];
@@ -248,11 +237,11 @@ export class FoundryContext {
     /**
      * Add a prank to a call frame identified by `eei`.
      */
-    public addPrank(eei: Env, prank: FoundryPrank): void {
-        const pranks = this.getPranks(eei);
+    public addPrank(frame: PrankCallFrame, prank: FoundryPrank): void {
+        const pranks = this.getPranks(frame);
         pranks.push(prank);
 
-        (eei as any).pranks = pranks;
+        frame.pranks = pranks;
     }
 
     /**
@@ -260,8 +249,8 @@ export class FoundryContext {
      */
     public clearPranks(): void {
         for (let i = this.envStack.length - 1; i >= 0; i--) {
-            (this.envStack[i] as any).pranks = undefined;
-            (this.envStack[i] as any).pendingPrank = undefined;
+            this.envStack[i].pranks = undefined;
+            this.envStack[i].pendingPrank = undefined;
         }
     }
 
@@ -303,19 +292,18 @@ export class FoundryContext {
      * Callback from the hooks in the interpreter to keep track of the
      * eei stack
      */
-    beforeInterpRunCB(interp: typeof Interpreter): void {
-        const env = interp._env;
+    beforeInterpRunCB(msg: Message): void {
         const pendingPrank = this.getPendingPrank();
 
         if (pendingPrank) {
-            this.addPrank(env, pendingPrank);
+            this.addPrank(msg as PrankCallFrame, pendingPrank);
 
             if (pendingPrank.once) {
                 this.setPendingPrank(undefined);
             }
         }
 
-        this.envStack.push(env);
+        this.envStack.push(msg as PrankCallFrame);
     }
 
     /**
@@ -325,14 +313,6 @@ export class FoundryContext {
     afterInterpRunCB(): void {
         this.envStack.pop();
     }
-}
-
-export function getFoundryCtx(evm: EVMInterface): FoundryContext {
-    return (evm as any)._foundryCtx;
-}
-
-export function setFoundryCtx(evm: EVMInterface, ctx: FoundryContext): void {
-    (evm as any)._foundryCtx = ctx;
 }
 
 export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContext] {
@@ -464,7 +444,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
         if (equalsBytes(selector, PRANK_SELECTOR01)) {
             // Foundry doesn't allow multiple concurrent pranks
             if (ctx.getPendingPrank() !== undefined) {
-                return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
+                return EvmErrorResult(new EvmError(ERROR.REVERT as any), 0n);
             }
 
             ctx.setPendingPrank({
@@ -483,7 +463,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
         if (equalsBytes(selector, PRANK_SELECTOR02)) {
             // Foundry doesn't allow multiple concurrent pranks
             if (ctx.getPendingPrank() !== undefined) {
-                return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
+                return EvmErrorResult(new EvmError(ERROR.REVERT as any), 0n);
             }
 
             ctx.setPendingPrank({
@@ -507,7 +487,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
         if (equalsBytes(selector, START_PRANK_SELECTOR01)) {
             // Foundry doesn't allow multiple concurrent pranks
             if (ctx.getPendingPrank() !== undefined) {
-                return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
+                return EvmErrorResult(new EvmError(ERROR.REVERT as any), 0n);
             }
 
             ctx.setPendingPrank({
@@ -527,7 +507,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
         if (equalsBytes(selector, START_PRANK_SELECTOR02)) {
             // Foundry doesn't allow multiple concurrent pranks
             if (ctx.getPendingPrank() !== undefined) {
-                return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
+                return EvmErrorResult(new EvmError(ERROR.REVERT as any), 0n);
             }
 
             ctx.setPendingPrank({
@@ -572,7 +552,7 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
         if (equalsBytes(selector, EXPECT_REVERT_SELECTOR02)) {
             //console.error(`vm.expectRevert(bytes4);`);
             if (input.data.length < 8) {
-                return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
+                return EvmErrorResult(new EvmError(ERROR.REVERT as any), 0n);
             }
 
             const selector = input.data.slice(4, 8);
@@ -586,13 +566,13 @@ export function makeFoundryCheatcodePrecompile(): [PrecompileFunc, FoundryContex
 
         if (equalsBytes(selector, EXPECT_REVERT_SELECTOR03)) {
             if (input.data.length < 68) {
-                return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
+                return EvmErrorResult(new EvmError(ERROR.REVERT as any), 0n);
             }
 
             const len = Number(bigEndianBufToBigint(input.data.slice(36, 68)));
 
             if (input.data.length < 68 + len) {
-                return EvmErrorResult(new EvmError(ERROR.REVERT), 0n);
+                return EvmErrorResult(new EvmError(ERROR.REVERT as any), 0n);
             }
 
             const bytes = input.data.slice(68, 68 + len);
