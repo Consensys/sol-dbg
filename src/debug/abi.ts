@@ -398,10 +398,19 @@ export function findMethodBySelector(
         }
 
         for (const v of base.vStateVariables) {
-            if (
-                v.visibility === StateVariableVisibility.Public &&
-                infer.signatureHash(v) == strSelector
-            ) {
+            if (v.visibility !== StateVariableVisibility.Public) {
+                continue;
+            }
+
+            let hash: string | undefined;
+
+            try {
+                hash = infer.signatureHash(v);
+            } catch (e) {
+                continue;
+            }
+
+            if (hash == strSelector) {
                 return v;
             }
         }

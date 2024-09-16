@@ -136,20 +136,52 @@ export class SolTxDebugger {
     }
 
     /**
+     * Decode a *CALL* instruction. Computes:
+     * 1. The receiver address
+     * 2. The code address
+     * 3. The msg.data
+     * @param step
+     */
+    private decodeCall(step: StepState): [Address, Address, Uint8Array] {
+        const op = step.op;
+        assert(
+            op.opcode === OPCODES.CALL ||
+                op.opcode === OPCODES.CALLCODE ||
+                op.opcode === OPCODES.DELEGATECALL ||
+                op.opcode === OPCODES.STATICCALL,
+            `Unexpected call instruction {0}`,
+            op.mnemonic
+        );
+
+        const stackTop = step.evmStack.length - 1;
+        const argStackOff = op.opcode === OPCODES.CALL || op.opcode === OPCODES.CALLCODE ? 3 : 2;
+        const argSizeStackOff = argStackOff + 1;
+
+        const receiverArg = wordToAddress(step.evmStack[stackTop - 1]);
+        const argOff = bigEndianBufToNumber(step.evmStack[stackTop - argStackOff]);
+        const argSize = bigEndianBufToNumber(step.evmStack[stackTop - argSizeStackOff]);
+
+        const receiver = op.opcode === OPCODES.DELEGATECALL ? step.address : receiverArg;
+        const codeAddr = receiverArg;
+        const msgData = step.memory.slice(argOff, argOff + argSize);
+
+        return [receiver, codeAddr, msgData];
+    }
+
+    /**
      * Given the VM state of a trace step adjust the stack trace accordingly. This handles the following cases:
      *
      * - op is CREATE or CREATE2 - push a new external frame for the creation context of the contract
      * - op is CALL/CALLCODE/DELEGATECALL/STATICCALL - push a new external frame for the callee context
      * - stack depth decreased and previous instruction was RETURN, REVERT or was in an error state - pop external frames from the stack
      * - internal call - previous op is JUMPDEST and the source map of the current op is the begining of a new function - push a new internal call frame
-     * - return from internal call - TODO
+     * - return from internal call - pop the last frame
      */
     private async adjustStackFrame(
+        vm: VM,
         stack: Frame[],
         state: StepVMState,
-        trace: StepState[],
-        code: Uint8Array,
-        codeHash: HexString | undefined
+        trace: StepState[]
     ): Promise<void> {
         const lastExtFrame: ExternalFrame = lastExternalFrame(stack);
 
@@ -178,34 +210,22 @@ export class SolTxDebugger {
                     const creationBytecode = lastStep.memory.slice(off, off + size);
 
                     const curFrame = await this.makeCreationFrame(
-                        lastExtFrame.address.toString(),
+                        lastExtFrame.address,
                         creationBytecode,
                         trace.length
                     );
 
                     stack.push(curFrame);
                 } else {
-                    // External call
-                    const argStackOff =
-                        lastOp.opcode === OPCODES.CALL || lastOp.opcode === OPCODES.CALLCODE
-                            ? 3
-                            : 2;
+                    const [receiver, codeAddr, msgData] = this.decodeCall(lastStep);
 
-                    const argSizeStackOff = argStackOff + 1;
+                    const code = await vm.stateManager.getContractCode(codeAddr);
+                    const codeHash = getCodeHash(code);
 
-                    const argOff = bigEndianBufToNumber(
-                        lastStep.evmStack[lastStackTop - argStackOff]
-                    );
-                    const argSize = bigEndianBufToNumber(
-                        lastStep.evmStack[lastStackTop - argSizeStackOff]
-                    );
-
-                    const receiver = wordToAddress(lastStep.evmStack[lastStackTop - 1]);
-
-                    const msgData = lastStep.memory.slice(argOff, argOff + argSize);
                     const newFrame = await this.makeCallFrame(
-                        lastExtFrame.address.toString(),
+                        lastExtFrame.address,
                         receiver,
+                        codeAddr,
                         msgData,
                         code,
                         codeHash,
@@ -315,65 +335,6 @@ export class SolTxDebugger {
         }
     }
 
-    /**
-     * Get the executing code for the current step. There are 3 cases:
-     *
-     * 1. We just entered the creation of a new code (last step was
-     * CREATE/CREATE2 and depth changed). The code is whatever the memory blob
-     * passed to the last op was
-     * 2. This is the first step or the `codeAddress` changed between this and the last
-     * steps - obtain the code from the `vm.stateManager` using `codeAddress`.
-     * 3. Otherwise code is the same in the last step
-     * @param vm - current VM
-     * @param vmState - current (partial) state in the trace (for which we are computing code)
-     * @param trace - trace up to the current state
-     */
-    private async getCodeAndMdHash(
-        vm: VM,
-        step: StepVMState,
-        trace: StepState[]
-    ): Promise<[Uint8Array, HexString | undefined]> {
-        const lastStep = trace.length > 0 ? trace[trace.length - 1] : undefined;
-
-        let code: Uint8Array;
-        let codeMdHash: HexString | undefined;
-        const getCodeAddress = (s: StepVMState): Address =>
-            s.codeAddress !== undefined ? s.codeAddress : s.address;
-
-        // Case 1: First step in the trace
-        if (lastStep === undefined) {
-            const code = await vm.stateManager.getContractCode(getCodeAddress(step));
-            const codeMdHash = getCodeHash(code);
-            return [code, codeMdHash];
-        }
-
-        // Case 2: Just entering a constructor from another contract
-        if (createsContract(lastStep.op)) {
-            const lastStackTop = lastStep.evmStack.length - 1;
-
-            const off = bigEndianBufToNumber(lastStep.evmStack[lastStackTop - 1]);
-            const size = bigEndianBufToNumber(lastStep.evmStack[lastStackTop - 2]);
-
-            const code = lastStep.memory.slice(off, off + size);
-            const codeMdHash = getCreationCodeHash(code);
-            return [code, codeMdHash];
-        }
-
-        // Case 3: The code changed - either we are in a different contract or a delegate call context
-        if (!getCodeAddress(lastStep).equals(getCodeAddress(step))) {
-            // Case 3: We are changing the code address
-            code = await vm.stateManager.getContractCode(getCodeAddress(step));
-            codeMdHash = getCodeHash(code);
-            return [code, codeMdHash];
-        }
-
-        // Case 4: We are still in the same contract
-        code = lastStep.code;
-        codeMdHash = lastStep.codeMdHash;
-
-        return [code, codeMdHash];
-    }
-
     async processRawTraceStep(
         vm: VM,
         stateManager: EVMStateManagerInterface,
@@ -418,9 +379,7 @@ export class SolTxDebugger {
             codeAddress: step.codeAddress
         };
 
-        const [code, codeMdHash] = await this.getCodeAndMdHash(vm, vmState, trace);
-
-        await this.adjustStackFrame(stack, vmState, trace, code, codeMdHash);
+        await this.adjustStackFrame(vm, stack, vmState, trace);
 
         const curExtFrame = lastExternalFrame(stack);
 
@@ -454,8 +413,6 @@ export class SolTxDebugger {
 
         return {
             ...vmState,
-            code,
-            codeMdHash,
             stack: [...stack],
             src,
             astNode,
@@ -550,7 +507,7 @@ export class SolTxDebugger {
             this.foundryCheatcodes
         );
 
-        const sender = tx.getSenderAddress().toString();
+        const sender = tx.getSenderAddress();
         const receiver = tx.to === undefined ? ZERO_ADDRESS_STRING : tx.to.toString();
         const isCreation = receiver === ZERO_ADDRESS_STRING;
         const stack: Frame[] = [];
@@ -573,7 +530,7 @@ export class SolTxDebugger {
 
             const codeHash = getCodeHash(code);
 
-            curFrame = await this.makeCallFrame(sender, tx.to, tx.data, code, codeHash, 0);
+            curFrame = await this.makeCallFrame(sender, tx.to, tx.to, tx.data, code, codeHash, 0);
         }
 
         stack.push(curFrame);
@@ -607,7 +564,7 @@ export class SolTxDebugger {
      * Build a `CreationFrame` from the given `sender` address, `data` `Uint8Array`(msg.data) and the current trace step number.
      */
     private async makeCreationFrame(
-        sender: HexString,
+        sender: Address,
         data: Uint8Array,
         step: number
     ): Promise<CreationFrame> {
@@ -623,12 +580,13 @@ export class SolTxDebugger {
             kind: FrameKind.Creation,
             sender,
             msgData: data,
-            creationCode: data,
+            code: data,
             info: contractInfo,
             callee,
             address: ZERO_ADDRESS,
             startStep: step,
-            arguments: args
+            arguments: args,
+            codeMdHash: getCreationCodeHash(data)
         };
     }
 
@@ -656,8 +614,9 @@ export class SolTxDebugger {
      * Build a `CallFrame` from the given `sender` address, `receiver` address, `data` `Uint8Array`, (msg.data) and the current trace step number.
      */
     private async makeCallFrame(
-        sender: HexString,
+        sender: Address,
         receiver: Address,
+        codeAddress: Address,
         data: Uint8Array,
         receiverCode: Uint8Array,
         codeHash: HexString | undefined,
@@ -696,15 +655,17 @@ export class SolTxDebugger {
 
         return {
             kind: FrameKind.Call,
-            sender,
+            sender, // TODO: This should be Address
             msgData: data,
-            receiver: receiver.toString(),
+            receiver: receiver, // TODO: This should be Address
             code: receiverCode,
             info: contractInfo,
             callee,
             address: receiver,
             startStep: step,
-            arguments: args
+            arguments: args,
+            codeMdHash: codeHash,
+            codeAddress
         };
     }
 

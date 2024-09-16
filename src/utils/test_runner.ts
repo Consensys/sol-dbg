@@ -161,11 +161,7 @@ export class VMTestRunner {
     async harveyStepToTransaction(step: BaseTestStep): Promise<TypedTransaction> {
         const senderAddress = Address.fromString(step.origin);
         const senderAccount = await this.vm.stateManager.getAccount(senderAddress);
-        assert(
-            senderAccount !== undefined,
-            `Missing sender account for ${senderAddress.toString()}`
-        );
-        const senderNonce = senderAccount.nonce;
+        const senderNonce = senderAccount !== undefined ? senderAccount.nonce : 0;
 
         const txData: TypedTxData = {
             value: step.value,

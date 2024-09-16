@@ -344,16 +344,20 @@ export function ppStep(step: StepState): string {
 
     let contractId: string;
 
+    const extFrame = lastExternalFrame(step.stack);
+    const code: Uint8Array = extFrame.code;
+    const codeMdHash: string | undefined = extFrame.codeMdHash;
+
     if (step.contractInfo) {
         contractId = `${step.contractInfo.contractName}@${addrStr}`;
-    } else if (step.codeMdHash) {
-        contractId = `0x${step.codeMdHash.slice(0, 6)}...${step.codeMdHash.slice(60)}@${addrStr}`;
+    } else if (codeMdHash) {
+        contractId = `0x${codeMdHash.slice(0, 6)}...${codeMdHash.slice(60)}@${addrStr}`;
     } else {
         contractId = `unknown@${addrStr}`;
     }
 
     const immStr = step.op.immediates
-        .map((imm) => bytesToHex(step.code.slice(step.pc + 1, step.pc + 1 + imm.length)))
+        .map((imm) => bytesToHex(code.slice(step.pc + 1, step.pc + 1 + imm.length)))
         .join(" ");
 
     const stackStr = step.evmStack

@@ -62,14 +62,16 @@ export interface BaseFrame {
     readonly arguments: Array<[string, DataView | undefined]> | undefined;
     readonly startStep: number;
 }
-
 /**
  * Base class for a stack frame corresponding to an external call.
  */
 export interface BaseExternalFrame extends BaseFrame {
-    readonly sender: HexString;
+    readonly sender: Address;
     readonly msgData: Uint8Array;
     readonly address: Address;
+    readonly info?: ContractInfo;
+    readonly code: Uint8Array;
+    readonly codeMdHash: HexString | undefined;
 }
 
 /**
@@ -77,9 +79,8 @@ export interface BaseExternalFrame extends BaseFrame {
  */
 export interface CallFrame extends BaseExternalFrame {
     readonly kind: FrameKind.Call;
-    readonly receiver: HexString;
-    readonly code: Uint8Array;
-    readonly info?: ContractInfo;
+    readonly receiver: Address;
+    readonly codeAddress: Address;
 }
 
 /**
@@ -87,8 +88,6 @@ export interface CallFrame extends BaseExternalFrame {
  */
 export interface CreationFrame extends BaseExternalFrame {
     readonly kind: FrameKind.Creation;
-    readonly creationCode: Uint8Array;
-    readonly info?: ContractInfo;
 }
 
 /**
@@ -189,8 +188,6 @@ export interface StepVMState {
  * that may be emitted on this step.
  */
 export interface StepState extends StepVMState {
-    code: Uint8Array;
-    codeMdHash: HexString | undefined;
     stack: DbgStack;
     src: sol.DecodedBytecodeSourceMapEntry | undefined;
     astNode: sol.ASTNode | undefined;
