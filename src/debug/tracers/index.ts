@@ -1,2 +1,3 @@
 export * from "./base_tracer";
-export * from "./sol_debugger2";
+export * from "./sol_debugger";
+export * from "./transformers";

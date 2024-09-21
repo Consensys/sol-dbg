@@ -72,7 +72,7 @@ export interface BaseExternalFrame extends BaseFrame {
     readonly info?: ContractInfo;
     readonly code: Uint8Array;
     readonly codeMdHash: HexString | undefined;
-    internalFrames?: InternalCallFrame[];
+    internalFrames: InternalCallFrame[];
 }
 
 /**
@@ -103,6 +103,16 @@ export interface InternalCallFrame extends BaseFrame {
 export type ExternalFrame = CallFrame | CreationFrame;
 export type Frame = ExternalFrame | InternalCallFrame;
 export type DbgStack = Frame[];
+
+export function isFrame(a: any): a is Frame {
+    return (
+        a instanceof Object &&
+        a.hasOwnProperty("kind") &&
+        (a.kind === FrameKind.Call ||
+            a.kind === FrameKind.Creation ||
+            a.kind === FrameKind.InternalCall)
+    );
+}
 
 export enum DataLocationKind {
     Stack = "stack",
@@ -175,8 +185,6 @@ export interface StepVMState {
     gas: bigint;
     depth: number;
     address: Address;
-    // May be undefined, when we are in the consturctor. In that case use just the address
-    codeAddress: Address | undefined;
 }
 
 /**
@@ -186,12 +194,10 @@ export interface StepVMState {
  * that may be emitted on this step.
  */
 export interface StepState extends StepVMState {
-    stack: DbgStack;
-    extStack: ExternalFrame[];
+    stack: ExternalFrame[];
     src: sol.DecodedBytecodeSourceMapEntry | undefined;
     astNode: sol.ASTNode | undefined;
     emittedEvent: EventDesc | undefined;
-    contractInfo: ContractInfo | undefined;
 }
 
 /**

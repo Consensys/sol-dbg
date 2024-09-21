@@ -13,15 +13,10 @@ import {
     Stack
 } from "../../types";
 import { BasicStepInfo } from "./basic_info";
-import { ExternalFrameInfo } from "./ext_stack";
+import { ExternalFrameInfo, topExtFrame } from "./ext_stack";
 import { SourceInfo } from "./source";
 
-export function topExtFrame(stack: ExternalFrame[]): ExternalFrame {
-    assert(stack.length > 0, `Empty stack!`);
-    return stack[stack.length - 1];
-}
-
-export function topFrame(stack: ExternalFrame[]): Frame {
+export function topFrame(stack: ExternalFrame[] | ExternalFrameInfo): Frame {
     const topExt = topExtFrame(stack);
 
     if (topExt.internalFrames === undefined || topExt.internalFrames.length === 0) {
@@ -29,29 +24,6 @@ export function topFrame(stack: ExternalFrame[]): Frame {
     }
 
     return topExt.internalFrames[topExt.internalFrames.length - 1];
-}
-
-function push(stack: ExternalFrame[], frame: Frame): void {
-    if (frame.kind === FrameKind.InternalCall) {
-        const top = stack[stack.length - 1];
-
-        if (top.internalFrames === undefined) {
-            top.internalFrames = [frame];
-        } else {
-            top.internalFrames.push(frame);
-        }
-    }
-}
-
-function pop(stack: ExternalFrame[]): Frame {
-    assert(stack.length > 0, `Pop from empty stack`);
-    const top = stack[stack.length - 1];
-
-    if (top.internalFrames !== undefined && top.internalFrames.length > 0) {
-        return top.internalFrames.pop() as InternalCallFrame;
-    }
-
-    return stack.pop() as ExternalFrame;
 }
 
 /**
@@ -150,7 +122,7 @@ export async function addInternalFrame<
     }
 
     const ast = state.astNode;
-    const curExtFrame = topExtFrame(state.extStack);
+    const curExtFrame = topExtFrame(state.stack);
 
     //  2. Fall-through (the previous instruction is literally the pervious instruction in the contract body,
     //      AND the current JUMPDEST corresponds to a whole function, AND the pervious instructions' callee is different
@@ -160,7 +132,7 @@ export async function addInternalFrame<
         state.op.mnemonic === "JUMPDEST" &&
         (ast instanceof FunctionDefinition ||
             (ast instanceof VariableDeclaration && ast.stateVariable)) &&
-        topFrame(lastStep.extStack).callee !== ast
+        topFrame(lastStep.stack).callee !== ast
     ) {
         enteringInternalFun = true;
     }
@@ -185,13 +157,21 @@ export async function addInternalFrame<
             arguments: args
         };
 
-        push(state.extStack, newFrame);
-        return state;
+        const newInternalFrames = [...curExtFrame.internalFrames, newFrame];
+
+        return {
+            ...state,
+            stack: [
+                ...state.stack.slice(0, -1),
+                { ...curExtFrame, internalFrames: newInternalFrames }
+            ]
+        };
     }
 
     // Returning from an internal function call
     if (state.op.mnemonic === "JUMP" && state.src && state.src.jump === "o") {
-        const curFrame = topFrame(state.extStack);
+        const curFrame = topFrame(state.stack);
+        const newInternalFrames = curExtFrame.internalFrames.slice(0, -1);
 
         if (strict) {
             assert(
@@ -199,14 +179,17 @@ export async function addInternalFrame<
                 `Mismatched internal return from frame `,
                 curFrame.kind
             );
-
-            pop(state.extStack);
         } else {
-            if (curFrame.kind === FrameKind.InternalCall) {
-                pop(state.extStack);
-            }
             // @todo log an error somewhere
         }
+
+        return {
+            ...state,
+            stack: [
+                ...state.stack.slice(0, -1),
+                { ...curExtFrame, internalFrames: newInternalFrames }
+            ]
+        };
     }
 
     return state;

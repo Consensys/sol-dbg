@@ -4,8 +4,7 @@ import * as sol from "solc-typed-ast";
 import { getOffsetSrc } from "../../artifact_manager";
 import { ExternalFrame, FrameKind } from "../../types";
 import { BasicStepInfo } from "./basic_info";
-import { ExternalFrameInfo } from "./ext_stack";
-import { topExtFrame } from "./int_stack";
+import { ExternalFrameInfo, topExtFrame } from "./ext_stack";
 
 export interface SourceInfo {
     src: sol.DecodedBytecodeSourceMapEntry | undefined;
@@ -48,7 +47,7 @@ export async function addSource<T extends object & BasicStepInfo & ExternalFrame
     step: InterpreterStep,
     state: T
 ): Promise<T & SourceInfo> {
-    const [src, astNode] = decodeSourceLoc(state.pc, topExtFrame(state.extStack));
+    const [src, astNode] = decodeSourceLoc(state.pc, topExtFrame(state.stack));
 
     return {
         src,

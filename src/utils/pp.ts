@@ -23,16 +23,15 @@ import {
 import {
     ArtifactManager,
     ContractInfo,
-    DbgStack,
     decodeValue,
     ExternalFrame,
+    Frame,
     FrameKind,
     SolTxDebugger,
     SourceFileInfo,
     StepState
 } from "../debug";
-import { topExtFrame } from "../debug/tracers/transformers";
-import { decodeSourceLoc } from "../debug/tracers/transformers/source";
+import { decodeSourceLoc, getContractInfo, topExtFrame } from "../debug/tracers/transformers";
 
 const srcLocation = require("src-location");
 const fse = require("fs-extra");
@@ -123,13 +122,24 @@ function ppValue(typ: TypeNode, v: any, infer: InferType): string {
     throw new Error(`NYI ppValue of type ${typ.pp()}`);
 }
 
+export function flattenStack(s: ExternalFrame[]): Frame[] {
+    const res: Frame[] = [];
+    for (let i = 0; i < s.length; i++) {
+        res.push(s[i]);
+        res.push(...s[i].internalFrames);
+    }
+
+    return res;
+}
+
 export function ppStackTrace(
     solDbg: SolTxDebugger,
     trace: StepState[],
-    stack: DbgStack,
+    extStack: ExternalFrame[],
     curOffset: number
 ): string {
     const res: string[] = [];
+    const stack = flattenStack(extStack);
 
     for (let i = 0; i < stack.length; i++) {
         const frame = stack[i];
@@ -261,7 +271,7 @@ export function printStepSourceString(
     artifactManager: ArtifactManager,
     prefix: string | undefined
 ): string | undefined {
-    const info = step.contractInfo;
+    const info = getContractInfo(step);
 
     if (info === undefined) {
         return undefined;
@@ -325,7 +335,7 @@ export function debugDumpTrace(
 
         const srcString = printStepSourceString(
             step,
-            topExtFrame(step.extStack),
+            topExtFrame(step.stack),
             sources,
             artifactManager,
             prefix
@@ -344,12 +354,13 @@ export function ppStep(step: StepState): string {
 
     let contractId: string;
 
-    const extFrame = topExtFrame(step.extStack);
+    const extFrame = topExtFrame(step.stack);
     const code: Uint8Array = extFrame.code;
     const codeMdHash: string | undefined = extFrame.codeMdHash;
+    const contractInfo = getContractInfo(step);
 
-    if (step.contractInfo) {
-        contractId = `${step.contractInfo.contractName}@${addrStr}`;
+    if (contractInfo) {
+        contractId = `${contractInfo.contractName}@${addrStr}`;
     } else if (codeMdHash) {
         contractId = `0x${codeMdHash.slice(0, 6)}...${codeMdHash.slice(60)}@${addrStr}`;
     } else {

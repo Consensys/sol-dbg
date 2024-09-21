@@ -19,12 +19,35 @@ import {
     DataLocationKind,
     DataView,
     ExternalFrame,
-    FrameKind
+    Frame,
+    FrameKind,
+    isFrame
 } from "../../types";
 import { BasicStepInfo } from "./basic_info";
 
 export interface ExternalFrameInfo {
-    extStack: ExternalFrame[];
+    stack: ExternalFrame[];
+}
+
+export function topExtFrame(arg: ExternalFrame[] | ExternalFrameInfo | Frame): ExternalFrame {
+    if (isFrame(arg)) {
+        return arg.kind === FrameKind.InternalCall ? arg.nearestExtFrame : arg;
+    }
+
+    if (!(arg instanceof Array)) {
+        arg = arg.stack;
+    }
+
+    assert(arg.length > 0, `Empty stack!`);
+    return arg[arg.length - 1];
+}
+
+export function getContractInfo(step: ExternalFrameInfo): ContractInfo | undefined {
+    return topExtFrame(step).info;
+}
+
+export function getCode(step: ExternalFrameInfo): Uint8Array {
+    return topExtFrame(step).code;
 }
 
 /**
@@ -102,7 +125,8 @@ function makeCallFrame(
         startStep: step,
         arguments: args,
         codeMdHash: codeHash,
-        codeAddress
+        codeAddress,
+        internalFrames: []
     };
 }
 
@@ -133,7 +157,8 @@ function makeCreationFrame(
         address: ZERO_ADDRESS,
         startStep: step,
         arguments: args,
-        codeMdHash: getCreationCodeHash(data)
+        codeMdHash: getCreationCodeHash(data),
+        internalFrames: []
     };
 }
 
@@ -209,7 +234,7 @@ export async function addExternalFrame<T extends object & BasicStepInfo>(
         }
 
         return {
-            extStack: [extFrame],
+            stack: [extFrame],
             ...state
         };
     }
@@ -218,7 +243,7 @@ export async function addExternalFrame<T extends object & BasicStepInfo>(
 
     if (lastStep.depth === state.depth) {
         return {
-            extStack: lastStep.extStack,
+            stack: lastStep.stack,
             ...state
         };
     }
@@ -265,11 +290,11 @@ export async function addExternalFrame<T extends object & BasicStepInfo>(
         }
 
         return {
-            extStack: [...lastStep.extStack, extFrame],
+            stack: [...lastStep.stack, extFrame],
             ...state
         };
     } else {
-        const stack = [...lastStep.extStack];
+        const stack = [...lastStep.stack];
         // External return or exception
         let nFramesPopped = lastStep.depth - state.depth;
 
@@ -286,7 +311,7 @@ export async function addExternalFrame<T extends object & BasicStepInfo>(
         }
 
         return {
-            extStack: stack,
+            stack: stack,
             ...state
         };
     }

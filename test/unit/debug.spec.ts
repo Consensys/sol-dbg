@@ -22,7 +22,14 @@ import {
     foundryCtxMap
 } from "../../src/debug/foundry_cheatcodes";
 import { topExtFrame } from "../../src/debug/tracers/transformers";
-import { ppStackTrace, ResultKind, TestCase, TestStep, VMTestRunner } from "../../src/utils";
+import {
+    flattenStack,
+    ppStackTrace,
+    ResultKind,
+    TestCase,
+    TestStep,
+    VMTestRunner
+} from "../../src/utils";
 import { lsJson } from "../utils";
 
 function getFoundryCtx(evm: EVMInterface): FoundryContext {
@@ -30,6 +37,7 @@ function getFoundryCtx(evm: EVMInterface): FoundryContext {
     assert(res !== undefined, "");
     return res;
 }
+
 /**
  * Find the last step in the non-internal code, before trace step i
  */
@@ -37,7 +45,7 @@ export function findLastNonInternalStepBeforeStepI(
     trace: StepState[],
     i: number
 ): StepState | undefined {
-    const stack = trace[i].stack;
+    const stack = flattenStack(trace[i].stack);
 
     for (let j = stack.length - 1; j >= 0; j--) {
         if (stack[j].callee instanceof FunctionDefinition) {
@@ -322,7 +330,7 @@ describe("Local tests", () => {
                             expect(errorStep).not.toBeUndefined();
                             assert(errorStep !== undefined, "Should be catched by prev statement");
 
-                            const lastExtStep = topExtFrame(errorStep.extStack);
+                            const lastExtStep = topExtFrame(errorStep.stack);
                             const info = lastExtStep.info;
 
                             expect(info).not.toBeUndefined();
