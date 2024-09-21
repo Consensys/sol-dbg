@@ -9,8 +9,6 @@ import {
     ArtifactManager,
     bigEndianBufToNumber,
     ContractInfo,
-    getContractInfo,
-    lastExternalFrame,
     PartialSolcOutput,
     SolTxDebugger,
     SourceFileInfo,
@@ -23,6 +21,7 @@ import {
     FoundryContext,
     foundryCtxMap
 } from "../../src/debug/foundry_cheatcodes";
+import { topExtFrame } from "../../src/debug/tracers/transformers";
 import { ppStackTrace, ResultKind, TestCase, TestStep, VMTestRunner } from "../../src/utils";
 import { lsJson } from "../utils";
 
@@ -323,10 +322,8 @@ describe("Local tests", () => {
                             expect(errorStep).not.toBeUndefined();
                             assert(errorStep !== undefined, "Should be catched by prev statement");
 
-                            const lastExtStep = lastExternalFrame(errorStep.stack);
-                            const info = getContractInfo(
-                                errorStep.stack[errorStep.stack.length - 1]
-                            );
+                            const lastExtStep = topExtFrame(errorStep.extStack);
+                            const info = lastExtStep.info;
 
                             expect(info).not.toBeUndefined();
                             expect(errorStep.src).not.toBeUndefined();

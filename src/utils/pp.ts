@@ -27,12 +27,12 @@ import {
     decodeValue,
     ExternalFrame,
     FrameKind,
-    getContractInfo,
-    lastExternalFrame,
     SolTxDebugger,
     SourceFileInfo,
     StepState
 } from "../debug";
+import { topExtFrame } from "../debug/tracers/transformers";
+import { decodeSourceLoc } from "../debug/tracers/transformers/source";
 
 const srcLocation = require("src-location");
 const fse = require("fs-extra");
@@ -137,10 +137,10 @@ export function ppStackTrace(
         let frameStr: string;
 
         const lastOffset = i < stack.length - 1 ? trace[stack[i + 1].startStep - 1].pc : curOffset;
-        const extFrame = lastExternalFrame(frame);
-        const [lastPosInFrame] = solDbg.decodeSourceLoc(lastOffset, extFrame);
+        const extFrame = frame.kind === FrameKind.InternalCall ? frame.nearestExtFrame : frame;
+        const [lastPosInFrame] = decodeSourceLoc(lastOffset, extFrame);
 
-        const info = getContractInfo(frame);
+        const info = extFrame.info;
 
         let funArgs: string;
         let funName: string | undefined;
@@ -325,7 +325,7 @@ export function debugDumpTrace(
 
         const srcString = printStepSourceString(
             step,
-            lastExternalFrame(step.stack),
+            topExtFrame(step.extStack),
             sources,
             artifactManager,
             prefix
@@ -344,7 +344,7 @@ export function ppStep(step: StepState): string {
 
     let contractId: string;
 
-    const extFrame = lastExternalFrame(step.stack);
+    const extFrame = topExtFrame(step.extStack);
     const code: Uint8Array = extFrame.code;
     const codeMdHash: string | undefined = extFrame.codeMdHash;
 

@@ -72,6 +72,7 @@ export interface BaseExternalFrame extends BaseFrame {
     readonly info?: ContractInfo;
     readonly code: Uint8Array;
     readonly codeMdHash: HexString | undefined;
+    internalFrames?: InternalCallFrame[];
 }
 
 /**
@@ -160,9 +161,6 @@ export interface EventDesc {
 }
 
 /**
- * TODO(dimo): Make memory and storage be computed only for instructions that change them, and for all other
- * instructions alias the previous steps' memory/storage
- *
  * Low-level machine state at a given trace step. It directly mirrors the state reported from Web3
  * and doesn't include any higher-level information that requires debug info.
  */
@@ -189,6 +187,7 @@ export interface StepVMState {
  */
 export interface StepState extends StepVMState {
     stack: DbgStack;
+    extStack: ExternalFrame[];
     src: sol.DecodedBytecodeSourceMapEntry | undefined;
     astNode: sol.ASTNode | undefined;
     emittedEvent: EventDesc | undefined;

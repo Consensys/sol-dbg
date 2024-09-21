@@ -1,9 +1,9 @@
 import {
     ArrayType,
     assert,
-    DataLocation as SolDataLocation,
     InferType,
     PointerType,
+    DataLocation as SolDataLocation,
     TypeNode
 } from "solc-typed-ast";
 import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
@@ -11,13 +11,13 @@ import {
     DataLocation,
     DataLocationKind,
     DataView,
-    lastExternalFrame,
     MemoryLocation,
     MemoryLocationKind,
     StepState,
     StorageLocation
 } from "..";
 import { MAX_ARR_DECODE_LIMIT, uint256 } from "../..";
+import { topExtFrame } from "../tracers/transformers";
 import { cd_decodeArrayContents, cd_decodeValue } from "./calldata";
 import { mem_decodeValue } from "./memory";
 import { st_decodeInt, st_decodeValue } from "./stack";
@@ -43,7 +43,7 @@ function decodeValInt(typ: TypeNode, loc: DataLocation, state: StepState, infer:
     }
 
     if (loc.kind === DataLocationKind.CallData) {
-        const lastExtFrame = lastExternalFrame(state.stack);
+        const lastExtFrame = topExtFrame(state.extStack);
 
         let abiType: TypeNode;
 
@@ -101,7 +101,7 @@ export function decodeValue(view: DataView, state: StepState, infer: InferType):
         let pointedToLoc: MemoryLocation;
 
         if (isCalldataType2Slots(typ)) {
-            const lastExtFrame = lastExternalFrame(state.stack);
+            const lastExtFrame = topExtFrame(state.extStack);
 
             let abiType: TypeNode;
 
