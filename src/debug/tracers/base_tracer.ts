@@ -10,6 +10,7 @@ import { IArtifactManager } from "../artifact_manager";
 import {
     FoundryCheatcodesAddress,
     foundryCtxMap,
+    getFoundryCtx,
     makeFoundryCheatcodePrecompile
 } from "../foundry_cheatcodes";
 import { foundryInterposedOps } from "../opcode_interposing";
@@ -18,6 +19,10 @@ import { EVMOpts } from "../types";
 export interface TracerOpts {
     strict?: boolean;
     foundryCheatcodes?: boolean;
+}
+
+export interface FoundryTxResult extends RunTxResult {
+    failCalled: boolean;
 }
 
 /**
@@ -133,10 +138,10 @@ export abstract class BaseSolTxTracer<State> {
     async debugTx(
         tx: TypedTransaction,
         block: Block | undefined, // TODO: Make block required and add to processRawTraceStep
-        stateManager: EVMStateManagerInterface
-    ): Promise<[State[], RunTxResult]> {
+        stateBefore: EVMStateManagerInterface
+    ): Promise<[State[], FoundryTxResult, EVMStateManagerInterface]> {
         const vm = await BaseSolTxTracer.createVm(
-            stateManager.shallowCopy(true),
+            stateBefore.shallowCopy(true),
             this.foundryCheatcodes
         );
 
@@ -160,8 +165,19 @@ export abstract class BaseSolTxTracer<State> {
             skipBlockGasLimitValidation: true
         });
 
+        const foundryCtx = getFoundryCtx(vm.evm);
+        const foundryFailCalled = foundryCtx !== undefined ? foundryCtx.failCalled : false;
+        const stateAfter = vm.stateManager;
+
         BaseSolTxTracer.releaseVM(vm);
 
-        return [trace, txRes];
+        return [
+            trace,
+            {
+                ...txRes,
+                failCalled: foundryFailCalled
+            },
+            stateAfter
+        ];
     }
 }

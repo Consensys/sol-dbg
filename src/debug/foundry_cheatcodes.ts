@@ -1,4 +1,4 @@
-import { EVM, EvmError, ExecResult, Message, PrecompileInput } from "@ethereumjs/evm";
+import { EVM, EvmError, EVMInterface, ExecResult, Message, PrecompileInput } from "@ethereumjs/evm";
 import {
     Account,
     Address,
@@ -24,6 +24,10 @@ type RunState = any;
 export const foundryCtxMap = new Map<EVM, FoundryContext>();
 
 const oldRunMsgFun = (EVM.prototype as any).runInterpreter;
+
+export function getFoundryCtx(evm: EVMInterface): FoundryContext | undefined {
+    return foundryCtxMap.get(evm as EVM);
+}
 
 (EVM.prototype as any).runInterpreter = async function hookedRunInterpreter(
     message: Message,

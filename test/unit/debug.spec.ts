@@ -1,6 +1,3 @@
-import { EVM, EVMInterface } from "@ethereumjs/evm";
-import { DefaultStateManager } from "@ethereumjs/statemanager";
-import { RunTxResult, VM } from "@ethereumjs/vm";
 import { bytesToHex } from "ethereum-cryptography/utils";
 import expect from "expect";
 import fse from "fs-extra";
@@ -9,18 +6,14 @@ import {
     ArtifactManager,
     bigEndianBufToNumber,
     ContractInfo,
+    FoundryTxResult,
     PartialSolcOutput,
     SolTxDebugger,
     SourceFileInfo,
     StepState,
     wordToAddress
 } from "../../src";
-import {
-    FAIL_MSG_DATA,
-    FoundryCheatcodesAddress,
-    FoundryContext,
-    foundryCtxMap
-} from "../../src/debug/foundry_cheatcodes";
+import { FAIL_MSG_DATA, FoundryCheatcodesAddress } from "../../src/debug/foundry_cheatcodes";
 import { topExtFrame } from "../../src/debug/tracers/transformers";
 import {
     flattenStack,
@@ -31,12 +24,6 @@ import {
     VMTestRunner
 } from "../../src/utils";
 import { lsJson } from "../utils";
-
-function getFoundryCtx(evm: EVMInterface): FoundryContext {
-    const res = foundryCtxMap.get(evm as EVM);
-    assert(res !== undefined, "");
-    return res;
-}
 
 /**
  * Find the last step in the non-internal code, before trace step i
@@ -138,7 +125,7 @@ export function findFirstCallToFail(trace: StepState[]): StepState | undefined {
     return trace[i];
 }
 
-function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {
+function checkResult(result: FoundryTxResult, step: TestStep): boolean {
     switch (step.result.kind) {
         case ResultKind.ContractCreated: {
             const createdAddress = result.createdAddress
@@ -174,9 +161,7 @@ function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {
                 );
             }
 
-            const foundryCtx = getFoundryCtx(vm.evm);
-
-            const foundryFailed = foundryCtx.failCalled;
+            const foundryFailed = result.failCalled;
             if (foundryFailed) {
                 console.error(`Expected a foundry fail call, but the tx step succeeded`);
             }
@@ -205,9 +190,7 @@ function checkResult(result: RunTxResult, step: TestStep, vm: VM): boolean {
         }
 
         case ResultKind.FoundryFail: {
-            const foundryCtx = getFoundryCtx(vm.evm);
-
-            const failed = foundryCtx.failCalled;
+            const failed = result.failCalled;
 
             if (!failed) {
                 console.error(`Expected a foundry fail call, but the tx step succeeded`);
@@ -289,9 +272,7 @@ describe("Local tests", () => {
                             strict: false
                         });
 
-                        runner = new VMTestRunner(
-                            await SolTxDebugger.createVm(new DefaultStateManager(), true)
-                        );
+                        runner = new VMTestRunner(artifactManager, true);
 
                         testJSON = fse.readJsonSync(txFile);
 
@@ -302,7 +283,7 @@ describe("Local tests", () => {
                         for (let i = 0; i < runner.txs.length; i++) {
                             const curStep = testJSON.steps[i];
 
-                            expect(checkResult(runner.results[i], curStep, runner.vm)).toBeTruthy();
+                            expect(checkResult(runner.results[i], curStep)).toBeTruthy();
                         }
                     });
 

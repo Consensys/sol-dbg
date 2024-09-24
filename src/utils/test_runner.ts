@@ -1,12 +1,12 @@
 import { Block } from "@ethereumjs/block";
-import { EVMStateManagerInterface, Hardfork } from "@ethereumjs/common";
+import { Common, EVMStateManagerInterface, Hardfork } from "@ethereumjs/common";
 import { DefaultStateManager } from "@ethereumjs/statemanager";
 import { TypedTransaction, TypedTxData } from "@ethereumjs/tx";
-import { Account, Address } from "@ethereumjs/util";
-import { RunTxResult, VM } from "@ethereumjs/vm";
+import { Account, Address, PrefixedHexString } from "@ethereumjs/util";
 import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
 import { assert } from "solc-typed-ast";
 import { HexString } from "../artifacts";
+import { BaseSolTxTracer, FoundryTxResult, IArtifactManager, SupportTracer } from "../debug";
 import { ZERO_ADDRESS_STRING, hexStrToBuf32, makeFakeTransaction } from "./misc";
 
 export interface BaseTestStep {
@@ -94,40 +94,73 @@ export interface TestCase extends BaseTestCase {
 }
 
 /**
- * Helper class to re-play harvey test cases on a in-memory VmProxy
+ * Helper class to run a set of TX and record info to allow debuggin any of the TXs independently. This includes:
+ *
+ * 1. The TX data for each
+ * 2. The Block info for each TX
+ * 3. The State of the world before each TX
+ * 4. The result of the TX
+ * 5. The set of contracts before each TX
+ * 6. The set of keccak256 (result, preimage) pairs computed by the TX (useful for computing Solidity-level maps)
  */
 export class VMTestRunner {
-    private _vm: VM;
+    private tracer: SupportTracer;
     private _txs: TypedTransaction[];
     private _txToBlock: Map<string, Block>;
-    private _results: RunTxResult[];
+    private _results: FoundryTxResult[];
     private _stateRootBeforeTx = new Map<string, EVMStateManagerInterface>();
+    private _contractsBeforeTx = new Map<string, Set<PrefixedHexString>>();
 
-    get vm(): VM {
-        return this._vm;
-    }
+    constructor(
+        artifactManager: IArtifactManager,
+        private _foundryCheatcodes: boolean = true
+    ) {
+        this.tracer = new SupportTracer(artifactManager, {
+            strict: true,
+            foundryCheatcodes: this._foundryCheatcodes
+        });
 
-    constructor(vm: VM) {
-        this._vm = vm;
         this._txs = [];
         this._results = [];
         this._txToBlock = new Map();
     }
 
     async runTestCase(testCaseJSON: BaseTestCase): Promise<void> {
-        await this.setupInitialState(testCaseJSON.initialState);
+        /**
+         * Dummy VM used just to get a StateManager and a Common instance. The actual VM used for execution is created inside
+         * SupportTracer. (@todo this is kinda ugly... oh well)
+         */
+        const dummyVM = await BaseSolTxTracer.createVm(undefined, this._foundryCheatcodes);
+
+        let stateManager = dummyVM.stateManager.shallowCopy();
+        const common = dummyVM.common.copy();
+
+        BaseSolTxTracer.releaseVM(dummyVM);
+
+        const contractsBefore = await this.setupInitialState(
+            testCaseJSON.initialState,
+            stateManager as DefaultStateManager
+        );
 
         for (let i = 0; i < testCaseJSON.steps.length; i++) {
-            const tx = await this.harveyStepToTransaction(testCaseJSON.steps[i]);
-            const block = this.harveyStepToBlock(testCaseJSON.steps[i]);
-            const res = await this._runTxInt(tx, block);
+            const tx = await this.harveyStepToTransaction(
+                testCaseJSON.steps[i],
+                stateManager,
+                common
+            );
 
-            this._results.push(res);
+            const block = this.harveyStepToBlock(testCaseJSON.steps[i], common);
+            const [, stateAfter] = await this._runTxInt(tx, block, contractsBefore, stateManager);
+
+            stateManager = stateAfter;
         }
     }
 
-    private async setupInitialState(initialState: InitialState): Promise<void> {
-        const state = this.vm.stateManager as DefaultStateManager;
+    private async setupInitialState(
+        initialState: InitialState,
+        state: DefaultStateManager
+    ): Promise<Set<PrefixedHexString>> {
+        const initialContracts = new Set<PrefixedHexString>();
 
         await state.checkpoint();
 
@@ -152,15 +185,25 @@ export class VMTestRunner {
             }
 
             await state.putContractCode(address, codeBuf);
+
+            if (codeBuf.length > 0) {
+                initialContracts.add(address.toString());
+            }
         }
 
         await state.commit();
         await state.flush();
+
+        return initialContracts;
     }
 
-    async harveyStepToTransaction(step: BaseTestStep): Promise<TypedTransaction> {
+    async harveyStepToTransaction(
+        step: BaseTestStep,
+        stateManager: EVMStateManagerInterface,
+        common: Common
+    ): Promise<TypedTransaction> {
         const senderAddress = Address.fromString(step.origin);
-        const senderAccount = await this.vm.stateManager.getAccount(senderAddress);
+        const senderAccount = await stateManager.getAccount(senderAddress);
         const senderNonce = senderAccount !== undefined ? senderAccount.nonce : 0;
 
         const txData: TypedTxData = {
@@ -175,52 +218,54 @@ export class VMTestRunner {
             txData.to = step.address;
         }
 
-        return makeFakeTransaction(txData, step.origin, this._vm.common);
+        return makeFakeTransaction(txData, step.origin, common);
     }
 
-    harveyStepToBlock(step: BaseTestStep): Block {
+    harveyStepToBlock(step: BaseTestStep, common: Common): Block {
         return Block.fromBlockData(
             {
                 header: {
                     coinbase: step.origin,
-                    difficulty:
-                        this.vm.common.hardfork() === Hardfork.Shanghai ? 0 : step.blockDifficulty,
+                    difficulty: common.hardfork() === Hardfork.Shanghai ? 0 : step.blockDifficulty,
                     gasLimit: step.blockGasLimit,
                     number: step.blockNumber,
                     timestamp: step.blockTime
                 }
             },
             {
-                common: this.vm.common
+                common: common
             }
         );
     }
 
-    private async _runTxInt(tx: TypedTransaction, block: Block): Promise<RunTxResult> {
+    private async _runTxInt(
+        tx: TypedTransaction,
+        block: Block,
+        contractsBefore: Set<PrefixedHexString>,
+        stateManager: EVMStateManagerInterface
+    ): Promise<[FoundryTxResult, EVMStateManagerInterface]> {
         const txHash = bytesToHex(tx.hash());
 
         this._txs.push(tx);
 
-        this._stateRootBeforeTx.set(txHash, this.vm.stateManager.shallowCopy(true));
+        this._stateRootBeforeTx.set(txHash, stateManager);
         this._txToBlock.set(txHash, block);
+        this._contractsBeforeTx.set(txHash, contractsBefore);
 
-        const res = this.vm.runTx({
-            tx,
-            block,
-            skipBalance: true,
-            skipNonce: true,
-            skipBlockGasLimitValidation: true
-        });
-        await (this.vm.stateManager as DefaultStateManager).flush();
+        const [, res, stateAfter] = await this.tracer.debugTx(tx, block, stateManager);
 
-        return res;
+        await (stateManager as DefaultStateManager).flush();
+
+        this._results.push(res);
+
+        return [res, stateAfter];
     }
 
     get txs(): TypedTransaction[] {
         return this._txs;
     }
 
-    get results(): RunTxResult[] {
+    get results(): FoundryTxResult[] {
         return this._results;
     }
 
