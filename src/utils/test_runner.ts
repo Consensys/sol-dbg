@@ -6,8 +6,19 @@ import { Account, Address, PrefixedHexString } from "@ethereumjs/util";
 import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
 import { assert } from "solc-typed-ast";
 import { HexString } from "../artifacts";
-import { BaseSolTxTracer, FoundryTxResult, IArtifactManager, SupportTracer } from "../debug";
-import { ZERO_ADDRESS_STRING, hexStrToBuf32, makeFakeTransaction } from "./misc";
+import {
+    BaseSolTxTracer,
+    ContractSolidityState,
+    FoundryTxResult,
+    getContractGenKillSet,
+    getKeccakPreimages,
+    IArtifactManager,
+    KeccakPreimageMap,
+    SupportTracer
+} from "../debug";
+import { map_add } from "./map";
+import { hexStrToBuf32, makeFakeTransaction, ZERO_ADDRESS_STRING } from "./misc";
+import { set_add, set_subtract } from "./set";
 
 export interface BaseTestStep {
     address: HexString;
@@ -87,6 +98,7 @@ export interface TestStep extends BaseTestStep {
     errorString?: string;
     // Optional prefix to append to file path to find the files
     errorPathPrefix?: string;
+    layoutBefore?: ContractSolidityState;
 }
 
 export interface TestCase extends BaseTestCase {
@@ -110,6 +122,7 @@ export class VMTestRunner {
     private _results: FoundryTxResult[];
     private _stateRootBeforeTx = new Map<string, EVMStateManagerInterface>();
     private _contractsBeforeTx = new Map<string, Set<PrefixedHexString>>();
+    private _keccakPreimagesBeforeTx = new Map<string, Map<bigint, Uint8Array>>();
 
     constructor(
         artifactManager: IArtifactManager,
@@ -142,6 +155,8 @@ export class VMTestRunner {
             stateManager as DefaultStateManager
         );
 
+        const keccakPreimages: KeccakPreimageMap = new Map();
+
         for (let i = 0; i < testCaseJSON.steps.length; i++) {
             const tx = await this.harveyStepToTransaction(
                 testCaseJSON.steps[i],
@@ -150,7 +165,32 @@ export class VMTestRunner {
             );
 
             const block = this.harveyStepToBlock(testCaseJSON.steps[i], common);
-            const [, stateAfter] = await this._runTxInt(tx, block, contractsBefore, stateManager);
+
+            const txHash = bytesToHex(tx.hash());
+
+            // Store the sets before the TX
+            this._txs.push(tx);
+            this._stateRootBeforeTx.set(txHash, stateManager);
+            this._txToBlock.set(txHash, block);
+            this._contractsBeforeTx.set(txHash, new Set(contractsBefore));
+            this._keccakPreimagesBeforeTx.set(txHash, new Map(keccakPreimages));
+
+            const [trace, res, stateAfter] = await this.tracer.debugTx(tx, block, stateManager);
+
+            await (stateManager as DefaultStateManager).flush();
+
+            // Update the set of live contracts
+            const [gen, kill] = getContractGenKillSet(trace, res);
+            set_add(contractsBefore, gen);
+            set_subtract(contractsBefore, kill);
+
+            const txKeccakPreimages = getKeccakPreimages(trace);
+            map_add(keccakPreimages, txKeccakPreimages);
+
+            // Update the keccak map
+
+            // Add results
+            this._results.push(res);
 
             stateManager = stateAfter;
         }
@@ -238,29 +278,6 @@ export class VMTestRunner {
         );
     }
 
-    private async _runTxInt(
-        tx: TypedTransaction,
-        block: Block,
-        contractsBefore: Set<PrefixedHexString>,
-        stateManager: EVMStateManagerInterface
-    ): Promise<[FoundryTxResult, EVMStateManagerInterface]> {
-        const txHash = bytesToHex(tx.hash());
-
-        this._txs.push(tx);
-
-        this._stateRootBeforeTx.set(txHash, stateManager);
-        this._txToBlock.set(txHash, block);
-        this._contractsBeforeTx.set(txHash, contractsBefore);
-
-        const [, res, stateAfter] = await this.tracer.debugTx(tx, block, stateManager);
-
-        await (stateManager as DefaultStateManager).flush();
-
-        this._results.push(res);
-
-        return [res, stateAfter];
-    }
-
     get txs(): TypedTransaction[] {
         return this._txs;
     }
@@ -281,6 +298,15 @@ export class VMTestRunner {
     getBlock(tx: TypedTransaction): Block {
         const txHash = bytesToHex(tx.hash());
         const res = this._txToBlock.get(txHash);
+
+        assert(res !== undefined, `Unable to find block for tx ${txHash}`);
+
+        return res;
+    }
+
+    getContractsBefore(tx: TypedTransaction): Set<PrefixedHexString> {
+        const txHash = bytesToHex(tx.hash());
+        const res = this._contractsBeforeTx.get(txHash);
 
         assert(res !== undefined, `Unable to find block for tx ${txHash}`);
 

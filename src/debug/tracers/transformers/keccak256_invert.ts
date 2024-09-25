@@ -4,11 +4,24 @@ import { bigEndianBufToBigint, bigEndianBufToNumber } from "../../../utils";
 import { OPCODES } from "../../opcodes";
 import { BasicStepInfo } from "./basic_info";
 
+export type KeccakPreimageMap = Map<bigint, Uint8Array>;
 export interface Keccak256InvertInfo {
     keccak?: {
         from: Uint8Array;
         to: bigint;
     };
+}
+
+/**
+ * Given a trace of contract creation/deletion event compute a gen/kill set summary for the trace.
+ */
+export function getKeccakPreimages(trace: Keccak256InvertInfo[]): KeccakPreimageMap {
+    return trace.reduce<KeccakPreimageMap>((m, info) => {
+        if (info.keccak) {
+            m.set(info.keccak.to, info.keccak.from);
+        }
+        return m;
+    }, new Map());
 }
 
 /**

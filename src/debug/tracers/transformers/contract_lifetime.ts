@@ -1,6 +1,6 @@
 import { InterpreterStep } from "@ethereumjs/evm";
 import { Address } from "@ethereumjs/util";
-import { VM } from "@ethereumjs/vm";
+import { RunTxResult, VM } from "@ethereumjs/vm";
 import { OPCODES } from "../../opcodes";
 import { FrameKind } from "../../types";
 import { BasicStepInfo } from "./basic_info";
@@ -9,6 +9,46 @@ import { ExternalFrameInfo, topExtFrame } from "./ext_stack";
 export interface ContractLifeTimeInfo {
     contractCreated?: Address;
     contractKilled?: Address;
+}
+
+/**
+ * Given a trace of contract creation/deletion event compute a gen/kill set summary for the trace.
+ */
+export function getContractGenKillSet(
+    trace: ContractLifeTimeInfo[],
+    res?: RunTxResult
+): [Set<string>, Set<string>] {
+    // Need to account for an entire transaction creating a contract potentially.
+    const [gen, kill] = trace.reduce<[Set<string>, Set<string>]>(
+        ([gen, kill], info) => {
+            if (info.contractCreated) {
+                const strAddr = info.contractCreated.toString();
+
+                if (kill.has(strAddr)) {
+                    kill.delete(strAddr);
+                } else {
+                    gen.add(info.contractCreated.toString());
+                }
+            }
+
+            if (info.contractKilled) {
+                const strAddr = info.contractKilled.toString();
+                if (gen.has(strAddr)) {
+                    gen.delete(strAddr);
+                } else {
+                    kill.add(strAddr);
+                }
+            }
+            return [gen, kill];
+        },
+        [new Set(), new Set()]
+    );
+
+    if (res && res.createdAddress !== undefined) {
+        gen.add(res.createdAddress.toString());
+    }
+
+    return [gen, kill];
 }
 
 /**

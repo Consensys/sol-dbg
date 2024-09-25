@@ -1,11 +1,13 @@
+import { Address } from "@ethereumjs/util";
 import { bytesToHex } from "ethereum-cryptography/utils";
 import expect from "expect";
 import fse from "fs-extra";
-import { assert, DecodedBytecodeSourceMapEntry, FunctionDefinition } from "solc-typed-ast";
+import { assert, DecodedBytecodeSourceMapEntry, forAny, FunctionDefinition } from "solc-typed-ast";
 import {
     ArtifactManager,
     bigEndianBufToNumber,
     ContractInfo,
+    decodeContractState,
     FoundryTxResult,
     PartialSolcOutput,
     SolTxDebugger,
@@ -14,7 +16,7 @@ import {
     wordToAddress
 } from "../../src";
 import { FAIL_MSG_DATA, FoundryCheatcodesAddress } from "../../src/debug/foundry_cheatcodes";
-import { topExtFrame } from "../../src/debug/tracers/transformers";
+import { getStorage, topExtFrame } from "../../src/debug/tracers/transformers";
 import {
     flattenStack,
     ppStackTrace,
@@ -261,10 +263,11 @@ describe("Local tests", () => {
             });
 
             for (const txFile of lsJson(`test/samples/local/${sample}/txs`)) {
+                const testJSON: TestCase = fse.readJsonSync(txFile);
+
                 describe(`Tx ${txFile}`, () => {
                     let solDbg: SolTxDebugger;
                     let runner: VMTestRunner;
-                    let testJSON: TestCase;
 
                     beforeAll(async () => {
                         solDbg = new SolTxDebugger(artifactManager, {
@@ -273,8 +276,6 @@ describe("Local tests", () => {
                         });
 
                         runner = new VMTestRunner(artifactManager, true);
-
-                        testJSON = fse.readJsonSync(txFile);
 
                         await runner.runTestCase(testJSON);
                     });
@@ -389,6 +390,53 @@ describe("Local tests", () => {
                             ).toBeTruthy();
                         }
                     });
+
+                    if (forAny(testJSON.steps, (step) => step.layoutBefore !== undefined)) {
+                        it("Layouts ok (if specified)", async () => {
+                            for (let i = 0; i < runner.txs.length; i++) {
+                                const curStep = testJSON.steps[i];
+
+                                if (curStep.layoutBefore === undefined) {
+                                    continue;
+                                }
+
+                                const tx = runner.txs[i];
+                                const stateBefore = runner.getStateBeforeTx(tx);
+
+                                const addr = Address.fromString(curStep.address);
+
+                                const code = await stateBefore.getContractCode(addr);
+                                expect(code.length).toBeGreaterThan(0);
+
+                                const info = artifactManager.getContractFromDeployedBytecode(code);
+
+                                expect(info).toBeDefined();
+                                assert(info !== undefined && info.ast !== undefined, "");
+
+                                const infer = artifactManager.infer(info.artifact.compilerVersion);
+                                const storage = await getStorage(stateBefore, addr);
+                                const layout = decodeContractState(
+                                    artifactManager,
+                                    infer,
+                                    info.ast,
+                                    storage
+                                );
+
+                                expect(layout).toBeDefined();
+
+                                const strLayout = JSON.stringify(
+                                    layout,
+                                    (key, value) =>
+                                        typeof value === "bigint" ? value.toString() : value,
+                                    2
+                                );
+
+                                expect(strLayout).toEqual(
+                                    JSON.stringify(curStep.layoutBefore, null, 2)
+                                );
+                            }
+                        });
+                    }
                 });
             }
         });

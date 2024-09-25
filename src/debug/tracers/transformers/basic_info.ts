@@ -10,7 +10,10 @@ import { EVMOpInfo, OPCODES, changesMemory } from "../../opcodes";
 import { Memory, Stack, Storage } from "../../types";
 import { OpInfo } from "./op";
 
-async function getStorage(manager: EVMStateManagerInterface, addr: Address): Promise<Storage> {
+export async function getStorage(
+    manager: EVMStateManagerInterface,
+    addr: Address
+): Promise<Storage> {
     const rawStorage = await manager.dumpStorage(addr);
     const storageEntries: Array<[bigint, Uint8Array]> = [];
 
@@ -58,6 +61,7 @@ export async function addBasicInfo<T extends object & OpInfo>(
     let storage: Storage;
 
     if (lastStep === undefined || lastStep.op.opcode === OPCODES.SSTORE) {
+        /** @todo the way we use getStorage we dont take advantage of ImmMap! This is inefficient */
         storage = await getStorage(vm.stateManager, step.address);
     } else {
         storage = lastStep.storage;

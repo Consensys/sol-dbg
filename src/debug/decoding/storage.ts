@@ -246,7 +246,7 @@ function typeFitsInLoc(typ: TypeNode, loc: StorageLocation, infer: InferType): b
             return loc.endOffsetInWord === 32;
         }
 
-        throw new Error(`NYI firstLocationOfTypeAfter(${typ.pp()},...)`);
+        throw new Error(`NYI typeFitsInLoc(${typ.pp()},...)`);
     }
 
     const size = typeStaticStorSize(typ, infer);
@@ -264,7 +264,11 @@ function nextWord(loc: StorageLocation): StorageLocation {
     };
 }
 
-function roundLocToType(loc: StorageLocation, typ: TypeNode, infer: InferType): StorageLocation {
+export function roundLocToType(
+    loc: StorageLocation,
+    typ: TypeNode,
+    infer: InferType
+): StorageLocation {
     if (typeFitsInLoc(typ, loc, infer)) {
         return loc;
     }
