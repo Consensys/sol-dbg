@@ -20,6 +20,7 @@ import {
     findLastNonInternalStepBeforeRevert,
     ppStackTrace,
     ResultKind,
+    sanitizeBigintFromJson,
     TestCase,
     TestStep,
     VMTestRunner
@@ -328,9 +329,8 @@ describe("Local tests", () => {
                                 expect(layout).toBeDefined();
 
                                 const strLayout = JSON.stringify(
-                                    layout,
-                                    (key, value) =>
-                                        typeof value === "bigint" ? value.toString() : value,
+                                    sanitizeBigintFromJson(layout),
+                                    undefined,
                                     2
                                 );
 

@@ -198,6 +198,12 @@ export interface StepState extends StepVMState {
     src: sol.DecodedBytecodeSourceMapEntry | undefined;
     astNode: sol.ASTNode | undefined;
     emittedEvent: EventDesc | undefined;
+    contractCreated?: Address;
+    contractKilled?: Address;
+    keccak?: {
+        from: Uint8Array;
+        to: bigint;
+    };
 }
 
 /**

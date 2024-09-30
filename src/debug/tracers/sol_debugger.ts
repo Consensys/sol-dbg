@@ -3,7 +3,12 @@ import { TypedTransaction } from "@ethereumjs/tx";
 import { VM } from "@ethereumjs/vm";
 import { StepState } from "../types";
 import { BaseSolTxTracer } from "./base_tracer";
-import { addBasicInfo, addOpInfo } from "./transformers";
+import {
+    addBasicInfo,
+    addContractLifetimeInfo,
+    addKeccakInvertInfo,
+    addOpInfo
+} from "./transformers";
 import { addEventInfo } from "./transformers/events";
 import { addExternalFrame } from "./transformers/ext_stack";
 import { addInternalFrame } from "./transformers/int_stack";
@@ -38,6 +43,10 @@ export class SolTxDebugger extends BaseSolTxTracer<StepState> {
 
         const events = await addEventInfo(vm, step, intStack);
 
-        return events;
+        const contractLifetime = await addContractLifetimeInfo(vm, step, events, trace);
+
+        const keccakPreimages = await addKeccakInvertInfo(vm, step, contractLifetime, trace);
+
+        return keccakPreimages;
     }
 }

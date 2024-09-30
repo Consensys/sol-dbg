@@ -240,3 +240,21 @@ export function getFunctionSelector(
         return undefined;
     }
 }
+
+export function sanitizeBigintFromJson(a: any): any {
+    if (typeof a === "bigint") {
+        return `${a}`;
+    }
+
+    if (a instanceof Array) {
+        return a.map(sanitizeBigintFromJson);
+    }
+
+    if (a instanceof Object) {
+        return Object.fromEntries(
+            Object.entries(a).map(([k, v]) => [k, sanitizeBigintFromJson(v)])
+        );
+    }
+
+    return a;
+}

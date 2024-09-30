@@ -49,7 +49,7 @@ export interface InitialState {
     };
 }
 
-interface BaseTestCase {
+export interface BaseTestCase {
     initialState: InitialState;
     steps: BaseTestStep[];
 }
@@ -125,7 +125,7 @@ export class VMTestRunner {
     private _keccakPreimagesBeforeTx = new Map<string, Map<bigint, Uint8Array>>();
 
     constructor(
-        artifactManager: IArtifactManager,
+        public readonly artifactManager: IArtifactManager,
         private _foundryCheatcodes: boolean = true
     ) {
         this.tracer = new SupportTracer(artifactManager, {
