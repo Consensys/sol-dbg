@@ -31,7 +31,12 @@ import {
     SourceFileInfo,
     StepState
 } from "../debug";
-import { decodeSourceLoc, getContractInfo, topExtFrame } from "../debug/tracers/transformers";
+import {
+    decodeSourceLoc,
+    getContractInfo,
+    MapKeys,
+    topExtFrame
+} from "../debug/tracers/transformers";
 
 const srcLocation = require("src-location");
 const fse = require("fs-extra");
@@ -136,7 +141,8 @@ export function ppStackTrace(
     solDbg: SolTxDebugger,
     trace: StepState[],
     extStack: ExternalFrame[],
-    curOffset: number
+    curOffset: number,
+    mapKeys?: MapKeys
 ): string {
     const res: string[] = [];
     const stack = flattenStack(extStack);
@@ -227,7 +233,7 @@ export function ppStackTrace(
                 assert(info !== undefined, ``);
                 const infer = solDbg.artifactManager.infer(info.artifact.compilerVersion);
 
-                const val = decodeValue(view, state, infer);
+                const val = decodeValue(view, state, infer, mapKeys);
 
                 funArgEls.push(ppValue(view.type, val, infer));
             }

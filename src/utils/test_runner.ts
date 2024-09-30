@@ -308,7 +308,16 @@ export class VMTestRunner {
         const txHash = bytesToHex(tx.hash());
         const res = this._contractsBeforeTx.get(txHash);
 
-        assert(res !== undefined, `Unable to find block for tx ${txHash}`);
+        assert(res !== undefined, `Unable to find contracts for tx ${txHash}`);
+
+        return res;
+    }
+
+    getKeccakPreimagesBefore(tx: TypedTransaction): KeccakPreimageMap {
+        const txHash = bytesToHex(tx.hash());
+        const res = this._keccakPreimagesBeforeTx.get(txHash);
+
+        assert(res !== undefined, `Unable to find keccak preimages for tx ${txHash}`);
 
         return res;
     }

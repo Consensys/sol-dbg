@@ -1,4 +1,4 @@
-import { Address, bytesToUtf8 } from "@ethereumjs/util";
+import { Address, bytesToHex, bytesToUtf8 } from "@ethereumjs/util";
 import { keccak256 } from "ethereum-cryptography/keccak.js";
 import {
     AddressType,
@@ -21,7 +21,14 @@ import {
     assert,
     enumToIntType
 } from "solc-typed-ast";
-import { Storage, StorageLocation, changeToLocation } from "..";
+import {
+    DataLocationKind,
+    MapKeys,
+    Storage,
+    StorageLocation,
+    changeToLocation,
+    mem_decodeValue
+} from "..";
 import { MAX_ARR_DECODE_LIMIT, bigEndianBufToBigint, bigIntToBuf, fits, uint256 } from "../..";
 
 /**
@@ -285,7 +292,8 @@ function stor_decodeStruct(
     typ: UserDefinedType,
     loc: StorageLocation,
     storage: Storage,
-    infer: InferType
+    infer: InferType,
+    mapKeys?: MapKeys
 ): undefined | [any, StorageLocation] {
     const def = typ.definition;
 
@@ -313,7 +321,7 @@ function stor_decodeStruct(
 
         loc = roundLocToType(loc, fieldT, infer);
 
-        const fieldVal = stor_decodeValue(fieldT, loc, storage, infer);
+        const fieldVal = stor_decodeValue(fieldT, loc, storage, infer, mapKeys);
 
         if (fieldVal === undefined) {
             return undefined;
@@ -389,7 +397,8 @@ function stor_decodeArray(
     typ: ArrayType,
     loc: StorageLocation,
     storage: Storage,
-    infer: InferType
+    infer: InferType,
+    mapKeys?: MapKeys
 ): undefined | [any[], StorageLocation] {
     let numLen: number;
     let contentsLoc: StorageLocation;
@@ -422,7 +431,7 @@ function stor_decodeArray(
     }
 
     for (let i = 0; i < numLen; i++) {
-        const elRes = stor_decodeValue(typ.elementT, contentsLoc, storage, infer);
+        const elRes = stor_decodeValue(typ.elementT, contentsLoc, storage, infer, mapKeys);
 
         if (elRes === undefined) {
             return undefined;
@@ -455,7 +464,8 @@ function stor_decodePointer(
     typ: PointerType,
     loc: StorageLocation,
     storage: Storage,
-    infer: InferType
+    infer: InferType,
+    mapKeys?: MapKeys
 ): undefined | [any, StorageLocation] {
     if (typ.to instanceof BytesType) {
         return stor_decodeBytes(loc, storage);
@@ -467,22 +477,109 @@ function stor_decodePointer(
 
     if (typ.to instanceof UserDefinedType) {
         if (typ.to.definition instanceof StructDefinition) {
-            return stor_decodeStruct(typ.to, loc, storage, infer);
+            return stor_decodeStruct(typ.to, loc, storage, infer, mapKeys);
         }
     }
 
     if (typ.to instanceof ArrayType) {
-        return stor_decodeArray(typ.to, loc, storage, infer);
+        return stor_decodeArray(typ.to, loc, storage, infer, mapKeys);
+    }
+
+    if (typ.to instanceof MappingType) {
+        return stor_decodeMap(typ.to, loc, storage, infer, mapKeys);
     }
 
     throw new Error(`NYI stor_decodePointer(${typ.pp()},...)`);
+}
+
+function translateMapKey(key: any): number | string {
+    if (typeof key === "bigint") {
+        return `${key}`;
+    }
+
+    if (typeof key === "number" || typeof key === "string") {
+        return key;
+    }
+
+    if (key instanceof Address) {
+        return key.toString();
+    }
+
+    throw new Error(`Unexpected decoded key value: ${key}`);
+}
+
+function decodeMapRefKey(type: TypeNode, data: Uint8Array): string {
+    if (!(type instanceof StringType || type instanceof BytesType)) {
+        throw new Error(`Invalid map reference key type ${type.pp()}`);
+    }
+
+    return type instanceof StringType ? bytesToUtf8(data) : bytesToHex(data);
+}
+
+export function stor_decodeMap(
+    typ: MappingType,
+    loc: StorageLocation,
+    storage: Storage,
+    infer: InferType,
+    mapKeys?: MapKeys
+): undefined | [any, StorageLocation] {
+    if (mapKeys === undefined) {
+        throw new Error(`Cannot decode map ${typ.pp()} without map keys given`);
+    }
+
+    const candidateKeys = mapKeys.get(loc.address);
+    const res: { [key: string | number]: any } = {};
+
+    // No keys
+    if (candidateKeys === undefined) {
+        return [res, nextWord(loc)];
+    }
+
+    for (const [candidateKey, candidateSlot] of candidateKeys) {
+        let decodedKey;
+        let decodedValue;
+
+        try {
+            if (typ.keyType instanceof PointerType) {
+                decodedKey = [decodeMapRefKey(typ.keyType.to, candidateKey), null];
+            } else {
+                decodedKey = mem_decodeValue(
+                    typ.keyType,
+                    { kind: DataLocationKind.Memory, address: BigInt(0) },
+                    candidateKey,
+                    infer
+                );
+            }
+        } catch (e) {
+            continue;
+        }
+
+        try {
+            decodedValue = stor_decodeValue(
+                typ.valueType,
+                { kind: DataLocationKind.Storage, address: candidateSlot, endOffsetInWord: 32 },
+                storage,
+                infer,
+                mapKeys
+            );
+        } catch (e) {
+            continue;
+        }
+
+        if (decodedKey !== undefined && decodedValue !== undefined) {
+            res[translateMapKey(decodedKey[0])] = decodedValue[0];
+        }
+    }
+
+    return [res, nextWord(loc)];
 }
 
 export function stor_decodeValue(
     typ: TypeNode,
     loc: StorageLocation,
     storage: Storage,
-    infer: InferType
+    infer: InferType,
+    mapKeys?: MapKeys
 ): undefined | [any, StorageLocation] {
     if (typ instanceof IntType) {
         return stor_decodeInt(typ, loc, storage);
@@ -501,7 +598,7 @@ export function stor_decodeValue(
     }
 
     if (typ instanceof PointerType) {
-        return stor_decodePointer(typ, loc, storage, infer);
+        return stor_decodePointer(typ, loc, storage, infer, mapKeys);
     }
 
     if (typ instanceof BytesType) {
@@ -513,12 +610,12 @@ export function stor_decodeValue(
     }
 
     if (typ instanceof ArrayType) {
-        return stor_decodeArray(typ, loc, storage, infer);
+        return stor_decodeArray(typ, loc, storage, infer, mapKeys);
     }
 
     if (typ instanceof UserDefinedType) {
         if (typ.definition instanceof StructDefinition) {
-            return stor_decodeStruct(typ, loc, storage, infer);
+            return stor_decodeStruct(typ, loc, storage, infer, mapKeys);
         }
 
         if (typ.definition instanceof ContractDefinition) {
@@ -532,7 +629,7 @@ export function stor_decodeValue(
         if (typ.definition instanceof UserDefinedValueTypeDefinition) {
             const underlyingType = infer.typeNameToTypeNode(typ.definition.underlyingType);
 
-            return stor_decodeValue(underlyingType, loc, storage, infer);
+            return stor_decodeValue(underlyingType, loc, storage, infer, mapKeys);
         }
     }
 

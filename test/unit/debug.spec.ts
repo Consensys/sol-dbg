@@ -16,7 +16,7 @@ import {
     wordToAddress
 } from "../../src";
 import { FAIL_MSG_DATA, FoundryCheatcodesAddress } from "../../src/debug/foundry_cheatcodes";
-import { getStorage, topExtFrame } from "../../src/debug/tracers/transformers";
+import { getMapKeys, getStorage, topExtFrame } from "../../src/debug/tracers/transformers";
 import {
     flattenStack,
     ppStackTrace,
@@ -415,11 +415,15 @@ describe("Local tests", () => {
 
                                 const infer = artifactManager.infer(info.artifact.compilerVersion);
                                 const storage = await getStorage(stateBefore, addr);
+                                const keccakPreimages = runner.getKeccakPreimagesBefore(tx);
+                                const mapKeys = getMapKeys(keccakPreimages);
+
                                 const layout = decodeContractState(
                                     artifactManager,
                                     infer,
                                     info.ast,
-                                    storage
+                                    storage,
+                                    mapKeys
                                 );
 
                                 expect(layout).toBeDefined();

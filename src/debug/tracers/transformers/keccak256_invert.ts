@@ -25,6 +25,41 @@ export function getKeccakPreimages(trace: Keccak256InvertInfo[]): KeccakPreimage
 }
 
 /**
+ * A map index is computed by doing keccak(key . p) where p is the slot of the
+ * map and key is the original key. MapKeys is a map from p => [... [keyN,
+ * keccak(keyN . p)] ... ]
+ */
+export type MapKeys = Map<bigint, Array<[Uint8Array, bigint]>>;
+
+/**
+ * Build a `MapKeys` map from a KeccakPreimageMap
+ */
+export function getMapKeys(preImageMap: KeccakPreimageMap): MapKeys {
+    const res: MapKeys = new Map();
+
+    for (const [keccakVal, origKey] of preImageMap) {
+        // Since preimages for map indexing are a concatenation of the real key, and the 32bit
+        // storage slot, we don't care about any keccak operations not gerater than 32 bytes
+        if (origKey.length <= 32) {
+            continue;
+        }
+
+        const keySuffix = origKey.slice(-32);
+        const slot = bigEndianBufToBigint(keySuffix);
+
+        if (!res.has(slot)) {
+            res.set(slot, []);
+        }
+
+        // Note we don't have to worry about duplicates. Values in KeccakPreimageMap are guaranteed to be unique due to the keys being
+        // their keccaks
+        (res.get(slot) as Array<[Uint8Array, bigint]>).push([origKey.slice(0, -32), keccakVal]);
+    }
+
+    return res;
+}
+
+/**
  * Add keccak256 pre-image info. Note we add it on the next instruction after the keccak
  */
 export function addKeccakInvertInfo<T extends object & BasicStepInfo>(

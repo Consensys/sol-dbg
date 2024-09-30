@@ -1,6 +1,7 @@
 import { ContractDefinition, InferType } from "solc-typed-ast";
 import { IArtifactManager } from "./artifact_manager";
 import { roundLocToType, stor_decodeValue } from "./decoding";
+import { MapKeys } from "./tracers";
 import { DataLocationKind, Storage, StorageLocation } from "./types";
 
 export interface ContractSolidityState {
@@ -46,7 +47,8 @@ export function decodeContractState(
     artifactManager: IArtifactManager,
     infer: InferType,
     contract: ContractDefinition,
-    storage: Storage
+    storage: Storage,
+    mapKeys?: MapKeys
 ): ContractSolidityState | undefined {
     const res: ContractSolidityState = {};
 
@@ -60,7 +62,7 @@ export function decodeContractState(
         for (const varDecl of base.vStateVariables) {
             const typeNode = infer.variableDeclarationToTypeNode(varDecl);
             loc = roundLocToType(loc, typeNode, infer);
-            const arg = stor_decodeValue(typeNode, loc, storage, infer);
+            const arg = stor_decodeValue(typeNode, loc, storage, infer, mapKeys);
 
             if (arg === undefined) {
                 return undefined;
