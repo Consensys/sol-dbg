@@ -1,0 +1,62 @@
+{
+  "initialState": {
+    "accounts": {
+      "0xAaaaAaAAaaaAAaAAaAaaaaAAAAAaAaaaAaAaaAA0": {
+        "nonce": 0,
+        "balance": "0x0000000000000000000000f000000000",
+        "code": "",
+        "storage": {}
+      },
+      "0xAaAaaAAAaAaaAaAaAaaAAaAaAAAAAaAAAaaAaAa2": {
+        "nonce": 0,
+        "balance": "0x0000000000000000000000f000000000",
+        "code": "",
+        "storage": {}
+      },
+      "0xafFEaFFEAFfeAfFEAffeaFfEAfFEaffeafFeAFfE": {
+        "nonce": 0,
+        "balance": "0x0000000000000000000000f000000000",
+        "code": "",
+        "storage": {}
+      }
+    }
+  },
+  "steps": [
+    {
+      "address": "0x0000000000000000000000000000000000000000",
+      "gasLimit": "0xff0000",
+      "gasPrice": "0x1",
+      "input": "0x6080604052348015600e575f80fd5b5060015f806101000a81548160ff021916908360ff1602179055507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff5f60016101000a81548160ff02191690835f0b60ff160217905550606a806100715f395ff3fe6080604052348015600e575f80fd5b50600436106026575f3560e01c80635c36b18614602a575b5f80fd5b60306032565b005b56fea264697066735822122087656cbc54b063462df9a8070378d02d22844e3d7c0f3373f865c1182f11b5f564736f6c63430008150033",
+      "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+      "value": "0x0",
+      "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+      "blockDifficulty": "0xc",
+      "blockGasLimit": "0xff0000",
+      "blockNumber": 1,
+      "blockTime": 1,
+      "result": {
+        "kind": "contract_created",
+        "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c"
+      }
+    },
+    {
+      "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
+      "gasLimit": "0xff0000",
+      "gasPrice": "0x1",
+      "input": "0x5c36b186",
+      "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+      "value": "0x0",
+      "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+      "blockDifficulty": "0xc",
+      "blockGasLimit": "0xff0000",
+      "blockNumber": 2,
+      "blockTime": 2,
+      "result": {
+        "kind": "value_returned",
+        "value": ""
+      },
+      "layoutBefore": {
+      }
+    }
+  ]
+}

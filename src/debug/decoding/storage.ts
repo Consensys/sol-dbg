@@ -263,7 +263,7 @@ function typeFitsInLoc(typ: TypeNode, loc: StorageLocation, infer: InferType): b
     return size <= loc.endOffsetInWord;
 }
 
-function nextWord(loc: StorageLocation): StorageLocation {
+export function nextWord(loc: StorageLocation): StorageLocation {
     return {
         kind: loc.kind,
         endOffsetInWord: 32,
