@@ -5,3 +5,4 @@ export * from "./pp";
 export * from "./set";
 export * from "./srcmap";
 export * from "./test_runner";
+export * from "./trace";
