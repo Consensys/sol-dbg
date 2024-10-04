@@ -9,16 +9,16 @@ import { HexString } from "../artifacts";
 import {
     BaseSolTxTracer,
     ContractSolidityState,
+    decodeContractStates,
     FoundryTxResult,
-    getContractGenKillSet,
     getKeccakPreimages,
     IArtifactManager,
     KeccakPreimageMap,
     SupportTracer
 } from "../debug";
+import { StorageDecodeTracer } from "../debug/tracers/storage_decode_tracer";
 import { map_add } from "./map";
 import { hexStrToBuf32, makeFakeTransaction, ZERO_ADDRESS_STRING } from "./misc";
-import { set_add, set_subtract } from "./set";
 
 export interface BaseTestStep {
     address: HexString;
@@ -84,6 +84,8 @@ interface ResultFoundryFail {
     kind: ResultKind.FoundryFail;
 }
 
+// @todo: Test-relevant parts of this should be separated from BaseTestStep and moved under test/
+// BaseTestStep should be renamed to something more generic - e.g. TxDesc
 export interface TestStep extends BaseTestStep {
     // Expected result of the transaction
     result:
@@ -98,12 +100,15 @@ export interface TestStep extends BaseTestStep {
     errorString?: string;
     // Optional prefix to append to file path to find the files
     errorPathPrefix?: string;
-    layoutBefore?: ContractSolidityState;
+    layoutBefore?: ContractStates;
+    layoutAtFailure?: ContractStates;
 }
 
 export interface TestCase extends BaseTestCase {
     steps: TestStep[];
 }
+
+export type ContractStates = { [addres: string]: ContractSolidityState };
 
 /**
  * Helper class to run a set of TX and record info to allow debuggin any of the TXs independently. This includes:
@@ -179,15 +184,13 @@ export class VMTestRunner {
 
             await (stateManager as DefaultStateManager).flush();
 
-            // Update the set of live contracts
-            const [gen, kill] = getContractGenKillSet(trace, res);
-            set_add(contractsBefore, gen);
-            set_subtract(contractsBefore, kill);
-
-            const txKeccakPreimages = getKeccakPreimages(trace);
-            map_add(keccakPreimages, txKeccakPreimages);
+            if (res.createdAddress) {
+                contractsBefore.add(res.createdAddress.toString());
+            }
 
             // Update the keccak map
+            const txKeccakPreimages = getKeccakPreimages(trace);
+            map_add(keccakPreimages, txKeccakPreimages);
 
             // Add results
             this._results.push(res);
@@ -320,5 +323,42 @@ export class VMTestRunner {
         assert(res !== undefined, `Unable to find keccak preimages for tx ${txHash}`);
 
         return res;
+    }
+
+    async getDecodedContractStatesBeforeTx(
+        tx: TypedTransaction,
+        contracts?: Iterable<Address>
+    ): Promise<ContractStates> {
+        const state = this.getStateBeforeTx(tx);
+        const preimages = this.getKeccakPreimagesBefore(tx);
+
+        if (contracts === undefined) {
+            contracts = [...this.getContractsBefore(tx)].map(Address.fromString);
+        }
+
+        return await decodeContractStates(this.artifactManager, contracts, state, preimages);
+    }
+
+    async getDecodedContractStatesOnTxStep(
+        tx: TypedTransaction,
+        stepNum: number
+    ): Promise<ContractStates | undefined> {
+        const tracer = new StorageDecodeTracer(this.artifactManager);
+
+        const liveContracts = new Set(this.getContractsBefore(tx));
+        const preimages = new Map(this.getKeccakPreimagesBefore(tx));
+        const [trace, ,] = await tracer.debugTx(tx, this.getBlock(tx), this.getStateBeforeTx(tx), {
+            liveContracts,
+            preimages,
+            targetSteps: new Set([stepNum])
+        });
+
+        if (trace.length < stepNum) {
+            return undefined;
+        }
+
+        assert(trace[stepNum].decodedStorage !== undefined, ``);
+
+        return trace[stepNum].decodedStorage;
     }
 }

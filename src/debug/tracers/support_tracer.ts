@@ -1,7 +1,7 @@
 import { InterpreterStep } from "@ethereumjs/evm";
 import { TypedTransaction } from "@ethereumjs/tx";
 import { VM } from "@ethereumjs/vm";
-import { BaseSolTxTracer } from "./base_tracer";
+import { MapOnlyTracer } from "./base_tracer";
 import {
     addBasicInfo,
     addContractLifetimeInfo,
@@ -23,13 +23,13 @@ export type SupportTracerStepInfo = BasicStepInfo &
  * The information it collects supports the debugging for the main SolTxDebugger tracer.
  * It is more-light weight and is ran by the TestRunner for all TXs, even if we are not going to debug them.
  */
-export class SupportTracer extends BaseSolTxTracer<SupportTracerStepInfo> {
+export class SupportTracer extends MapOnlyTracer<SupportTracerStepInfo> {
     async processRawTraceStep(
         vm: VM,
         step: InterpreterStep,
         trace: SupportTracerStepInfo[],
         tx: TypedTransaction
-    ): Promise<SupportTracerStepInfo> {
+    ): Promise<[SupportTracerStepInfo, null]> {
         const opInfo = addOpInfo(vm, step, {});
         const basicInfo = await addBasicInfo(vm, step, opInfo, trace);
         const extFrameInfo = await addExternalFrame(
@@ -43,6 +43,6 @@ export class SupportTracer extends BaseSolTxTracer<SupportTracerStepInfo> {
         const contracLifetimeInfo = addContractLifetimeInfo(vm, step, extFrameInfo, trace);
         const keccakInfo = addKeccakInvertInfo(vm, step, contracLifetimeInfo, trace);
 
-        return keccakInfo;
+        return [keccakInfo, null];
     }
 }

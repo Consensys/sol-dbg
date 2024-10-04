@@ -1,3 +1,5 @@
+import { EVMStateManagerInterface } from "@ethereumjs/common";
+import { Address } from "@ethereumjs/util";
 import {
     ArrayType,
     ContractDefinition,
@@ -7,9 +9,10 @@ import {
     PointerType,
     TypeNode
 } from "solc-typed-ast";
+import { ContractStates } from "../utils";
 import { IArtifactManager } from "./artifact_manager";
 import { nextWord, roundLocToType, stor_decodeValue } from "./decoding";
-import { MapKeys } from "./tracers";
+import { getMapKeys, getStorage, KeccakPreimageMap, MapKeys } from "./tracers";
 import { DataLocationKind, Storage, StorageLocation } from "./types";
 
 export interface ContractSolidityState {
@@ -18,6 +21,42 @@ export interface ContractSolidityState {
 
 function isTypeStringStatic32Bytes(t: string): boolean {
     return t.endsWith("[]") || t.includes("mapping(");
+}
+
+export async function decodeContractStates(
+    artifactManager: IArtifactManager,
+    contracts: Iterable<Address>,
+    state: EVMStateManagerInterface,
+    preimages: KeccakPreimageMap
+): Promise<ContractStates> {
+    const res: ContractStates = {};
+    const mapKeys = getMapKeys(preimages);
+
+    for (const addr of contracts) {
+        const code = await state.getContractCode(addr);
+        const info = artifactManager.getContractFromDeployedBytecode(code);
+
+        if (!info || !info.ast) {
+            continue;
+        }
+
+        const infer = artifactManager.infer(info.artifact.compilerVersion);
+        const storage = await getStorage(state, addr);
+
+        const contractState = decodeContractState(
+            artifactManager,
+            infer,
+            info.ast,
+            storage,
+            mapKeys
+        );
+
+        if (contractState) {
+            res[addr.toString()] = contractState;
+        }
+    }
+
+    return res;
 }
 
 export function decodeContractState(

@@ -292,7 +292,7 @@ describe("Local tests", () => {
                     });
 
                     if (forAny(testJSON.steps, (step) => step.layoutBefore !== undefined)) {
-                        it("Layouts ok (if specified)", async () => {
+                        it("Layouts before tx ok (if specified)", async () => {
                             for (let i = 0; i < runner.txs.length; i++) {
                                 const curStep = testJSON.steps[i];
 
@@ -336,6 +336,61 @@ describe("Local tests", () => {
 
                                 expect(strLayout).toEqual(
                                     JSON.stringify(curStep.layoutBefore, null, 2)
+                                );
+                            }
+                        });
+                    }
+
+                    if (forAny(testJSON.steps, (step) => step.layoutAtFailure !== undefined)) {
+                        it("Layouts at failure ok (if specified)", async () => {
+                            for (let i = 0; i < runner.txs.length; i++) {
+                                const curStep = testJSON.steps[i];
+
+                                if (curStep.layoutBefore === undefined) {
+                                    continue;
+                                }
+
+                                if (
+                                    !(
+                                        curStep.result.kind === ResultKind.Revert ||
+                                        curStep.result.kind === ResultKind.LastRevert ||
+                                        curStep.result.kind === ResultKind.FoundryFail
+                                    )
+                                ) {
+                                    continue;
+                                }
+
+                                const tx = runner.txs[i];
+                                const block = runner.getBlock(tx);
+                                const stateBefore = runner.getStateBeforeTx(tx);
+                                const [trace] = await solDbg.debugTx(tx, block, stateBefore);
+
+                                const errorStep = getStepFailTraceStep(curStep, trace);
+
+                                expect(errorStep).not.toBeUndefined();
+                                assert(
+                                    errorStep !== undefined,
+                                    "Should be catched by prev statement"
+                                );
+
+                                const errorStepIdx = trace.indexOf(errorStep);
+                                assert(errorStepIdx > 0, "");
+
+                                const layout = await runner.getDecodedContractStatesOnTxStep(
+                                    tx,
+                                    errorStepIdx
+                                );
+
+                                expect(layout).toBeDefined();
+
+                                const strLayout = JSON.stringify(
+                                    sanitizeBigintFromJson(layout),
+                                    undefined,
+                                    2
+                                );
+
+                                expect(strLayout).toEqual(
+                                    JSON.stringify(curStep.layoutAtFailure, null, 2)
                                 );
                             }
                         });

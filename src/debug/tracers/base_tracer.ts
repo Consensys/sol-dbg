@@ -31,7 +31,16 @@ export interface FoundryTxResult extends RunTxResult {
  */
 const vmToEVMMap = new Map<VM, EVM>();
 
-export abstract class BaseSolTxTracer<State> {
+/**
+ * Base class for all trace processors. You can think of trace processing as a combination
+ * of a map operation from `InterpreterStep` -> `TraceT`, along with a reduce operation
+ * from `(TraceT, CtxT) -> CtxT`. All the map functions are stored in `transformers/` to allow
+ * for reusability between different tracers.
+ *
+ * There is yet no formal place for reducers to go to. Check out `storage_decode_tracer.ts` for an example
+ * of a reducer that accumulates live contracts and keccak preimages at each step.
+ */
+export abstract class BaseSolTxTracer<TraceT, CtxT> {
     artifactManager!: IArtifactManager;
     protected readonly strict: boolean;
     protected readonly foundryCheatcodes: boolean;
@@ -131,26 +140,37 @@ export abstract class BaseSolTxTracer<State> {
     abstract processRawTraceStep(
         vm: VM,
         step: InterpreterStep,
-        trace: State[],
-        tx: TypedTransaction
-    ): Promise<State>;
+        trace: TraceT[],
+        tx: TypedTransaction,
+        ctx: CtxT
+    ): Promise<[TraceT, CtxT]>;
 
+    /**
+     * Run a TX with the specified "transformers" returning a quadruple including:
+     *
+     * 1. An enriched trace
+     * 2. The TX result (with added info for Foundry TX)
+     * 3. The StateManager at the end of the TX
+     * 4. The final (reduced) context `CtxT`
+     */
     async debugTx(
         tx: TypedTransaction,
         block: Block | undefined, // TODO: Make block required and add to processRawTraceStep
-        stateBefore: EVMStateManagerInterface
-    ): Promise<[State[], FoundryTxResult, EVMStateManagerInterface]> {
+        stateBefore: EVMStateManagerInterface,
+        ctx: CtxT
+    ): Promise<[TraceT[], FoundryTxResult, EVMStateManagerInterface, CtxT]> {
         const vm = await BaseSolTxTracer.createVm(
             stateBefore.shallowCopy(true),
             this.foundryCheatcodes
         );
 
-        const trace: State[] = [];
+        const trace: TraceT[] = [];
 
         assert(vm.evm.events !== undefined, "Unable to access EVM events at this point");
 
         vm.evm.events.on("step", async (step: InterpreterStep, next: any) => {
-            const curStep = await this.processRawTraceStep(vm, step, trace, tx);
+            const [curStep, newCtx] = await this.processRawTraceStep(vm, step, trace, tx, ctx);
+            ctx = newCtx;
 
             trace.push(curStep);
 
@@ -177,7 +197,18 @@ export abstract class BaseSolTxTracer<State> {
                 ...txRes,
                 failCalled: foundryFailCalled
             },
-            stateAfter
+            stateAfter,
+            ctx
         ];
+    }
+}
+
+export abstract class MapOnlyTracer<TraceT> extends BaseSolTxTracer<TraceT, null> {
+    async debugTx(
+        tx: TypedTransaction,
+        block: Block | undefined,
+        stateBefore: EVMStateManagerInterface
+    ): Promise<[TraceT[], FoundryTxResult, EVMStateManagerInterface, null]> {
+        return super.debugTx(tx, block, stateBefore, null);
     }
 }

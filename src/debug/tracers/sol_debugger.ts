@@ -2,7 +2,7 @@ import { InterpreterStep } from "@ethereumjs/evm";
 import { TypedTransaction } from "@ethereumjs/tx";
 import { VM } from "@ethereumjs/vm";
 import { StepState } from "../types";
-import { BaseSolTxTracer } from "./base_tracer";
+import { MapOnlyTracer } from "./base_tracer";
 import {
     addBasicInfo,
     addContractLifetimeInfo,
@@ -14,13 +14,13 @@ import { addExternalFrame } from "./transformers/ext_stack";
 import { addInternalFrame } from "./transformers/int_stack";
 import { addSource } from "./transformers/source";
 
-export class SolTxDebugger extends BaseSolTxTracer<StepState> {
+export class SolTxDebugger extends MapOnlyTracer<StepState> {
     async processRawTraceStep(
         vm: VM,
         step: InterpreterStep,
         trace: StepState[],
         tx: TypedTransaction
-    ): Promise<StepState> {
+    ): Promise<[StepState, null]> {
         const opInfo = addOpInfo(vm, step, {});
         const basicInfo = await addBasicInfo(vm, step, opInfo, trace);
         const extFrameInfo = await addExternalFrame(
@@ -47,6 +47,6 @@ export class SolTxDebugger extends BaseSolTxTracer<StepState> {
 
         const keccakPreimages = await addKeccakInvertInfo(vm, step, contractLifetime, trace);
 
-        return keccakPreimages;
+        return [keccakPreimages, null];
     }
 }
