@@ -9,7 +9,6 @@ import {
     PointerType,
     TypeNode
 } from "solc-typed-ast";
-import { ContractStates } from "../utils";
 import { IArtifactManager } from "./artifact_manager";
 import { nextWord, roundLocToType, stor_decodeValue } from "./decoding";
 import { getMapKeys, getStorage, KeccakPreimageMap, MapKeys } from "./tracers";
@@ -18,6 +17,8 @@ import { DataLocationKind, Storage, StorageLocation } from "./types";
 export interface ContractSolidityState {
     [key: string]: any;
 }
+
+export type ContractStates = { [addres: string]: ContractSolidityState };
 
 function isTypeStringStatic32Bytes(t: string): boolean {
     return t.endsWith("[]") || t.includes("mapping(");

@@ -8,7 +8,7 @@ import { assert } from "solc-typed-ast";
 import { HexString } from "../artifacts";
 import {
     BaseSolTxTracer,
-    ContractSolidityState,
+    ContractStates,
     decodeContractStates,
     FoundryTxResult,
     getKeccakPreimages,
@@ -20,7 +20,7 @@ import { StorageDecodeTracer } from "../debug/tracers/storage_decode_tracer";
 import { map_add } from "./map";
 import { hexStrToBuf32, makeFakeTransaction, ZERO_ADDRESS_STRING } from "./misc";
 
-export interface BaseTestStep {
+export interface TxDesc {
     address: HexString;
     gasLimit: HexString;
     gasPrice: HexString;
@@ -49,69 +49,13 @@ export interface InitialState {
     };
 }
 
-export interface BaseTestCase {
+export interface Scenario {
     initialState: InitialState;
-    steps: BaseTestStep[];
+    steps: TxDesc[];
 }
-
-export enum ResultKind {
-    ContractCreated = "contract_created",
-    ValueReturned = "value_returned",
-    Revert = "revert",
-    LastRevert = "last_revert",
-    FoundryFail = "foundry_fail"
-}
-
-interface ResultContractCreated {
-    kind: ResultKind.ContractCreated;
-    address: string;
-}
-
-interface ResultValueReturned {
-    kind: ResultKind.ValueReturned;
-    value: HexString;
-}
-
-interface ResultRevert {
-    kind: ResultKind.Revert;
-}
-
-interface ResultLastRevert {
-    kind: ResultKind.LastRevert;
-}
-
-interface ResultFoundryFail {
-    kind: ResultKind.FoundryFail;
-}
-
-// @todo: Test-relevant parts of this should be separated from BaseTestStep and moved under test/
-// BaseTestStep should be renamed to something more generic - e.g. TxDesc
-export interface TestStep extends BaseTestStep {
-    // Expected result of the transaction
-    result:
-        | ResultContractCreated
-        | ResultValueReturned
-        | ResultRevert
-        | ResultLastRevert
-        | ResultFoundryFail;
-    // Stack trace at the first error in the tx
-    errorStack?: string[];
-    // String in the original file in which the error location maps to
-    errorString?: string;
-    // Optional prefix to append to file path to find the files
-    errorPathPrefix?: string;
-    layoutBefore?: ContractStates;
-    layoutAtFailure?: ContractStates;
-}
-
-export interface TestCase extends BaseTestCase {
-    steps: TestStep[];
-}
-
-export type ContractStates = { [addres: string]: ContractSolidityState };
 
 /**
- * Helper class to run a set of TX and record info to allow debuggin any of the TXs independently. This includes:
+ * Helper class to run a set of TX and record info to allow debugging any of the TXs independently. This includes:
  *
  * 1. The TX data for each
  * 2. The Block info for each TX
@@ -120,7 +64,7 @@ export type ContractStates = { [addres: string]: ContractSolidityState };
  * 5. The set of contracts before each TX
  * 6. The set of keccak256 (result, preimage) pairs computed by the TX (useful for computing Solidity-level maps)
  */
-export class VMTestRunner {
+export class TxRunner {
     private tracer: SupportTracer;
     private _txs: TypedTransaction[];
     private _txToBlock: Map<string, Block>;
@@ -143,7 +87,7 @@ export class VMTestRunner {
         this._txToBlock = new Map();
     }
 
-    async runTestCase(testCaseJSON: BaseTestCase): Promise<void> {
+    async runScenario(scenario: Scenario): Promise<void> {
         /**
          * Dummy VM used just to get a StateManager and a Common instance. The actual VM used for execution is created inside
          * SupportTracer. (@todo this is kinda ugly... oh well)
@@ -156,20 +100,16 @@ export class VMTestRunner {
         BaseSolTxTracer.releaseVM(dummyVM);
 
         const contractsBefore = await this.setupInitialState(
-            testCaseJSON.initialState,
+            scenario.initialState,
             stateManager as DefaultStateManager
         );
 
         const keccakPreimages: KeccakPreimageMap = new Map();
 
-        for (let i = 0; i < testCaseJSON.steps.length; i++) {
-            const tx = await this.harveyStepToTransaction(
-                testCaseJSON.steps[i],
-                stateManager,
-                common
-            );
+        for (let i = 0; i < scenario.steps.length; i++) {
+            const tx = await this.txDescToTx(scenario.steps[i], stateManager, common);
 
-            const block = this.harveyStepToBlock(testCaseJSON.steps[i], common);
+            const block = this.blockFromTxDesc(scenario.steps[i], common);
 
             const txHash = bytesToHex(tx.hash());
 
@@ -240,8 +180,8 @@ export class VMTestRunner {
         return initialContracts;
     }
 
-    async harveyStepToTransaction(
-        step: BaseTestStep,
+    async txDescToTx(
+        step: TxDesc,
         stateManager: EVMStateManagerInterface,
         common: Common
     ): Promise<TypedTransaction> {
@@ -264,7 +204,7 @@ export class VMTestRunner {
         return makeFakeTransaction(txData, step.origin, common);
     }
 
-    harveyStepToBlock(step: BaseTestStep, common: Common): Block {
+    private blockFromTxDesc(step: TxDesc, common: Common): Block {
         return Block.fromBlockData(
             {
                 header: {

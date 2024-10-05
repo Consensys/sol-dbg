@@ -2,8 +2,7 @@ import { InterpreterStep } from "@ethereumjs/evm";
 import { TypedTransaction } from "@ethereumjs/tx";
 import { Address } from "@ethereumjs/util";
 import { VM } from "@ethereumjs/vm";
-import { ContractStates } from "../../utils";
-import { decodeContractStates } from "../layout";
+import { ContractStates, decodeContractStates } from "../layout";
 import { BaseSolTxTracer } from "./base_tracer";
 import {
     addBasicInfo,

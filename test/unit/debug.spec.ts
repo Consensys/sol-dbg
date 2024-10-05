@@ -19,13 +19,11 @@ import {
     findLastNonInternalStepBeforeLastRevert,
     findLastNonInternalStepBeforeRevert,
     ppStackTrace,
-    ResultKind,
     sanitizeBigintFromJson,
-    TestCase,
-    TestStep,
-    VMTestRunner
+    TxRunner
 } from "../../src/utils";
 import { lsJson } from "../utils";
+import { ResultKind, TestCase, TestStep } from "../utils/test_case";
 
 function checkResult(result: FoundryTxResult, step: TestStep): boolean {
     switch (step.result.kind) {
@@ -167,7 +165,7 @@ describe("Local tests", () => {
 
                 describe(`Tx ${txFile}`, () => {
                     let solDbg: SolTxDebugger;
-                    let runner: VMTestRunner;
+                    let runner: TxRunner;
 
                     beforeAll(async () => {
                         solDbg = new SolTxDebugger(artifactManager, {
@@ -175,9 +173,9 @@ describe("Local tests", () => {
                             strict: false
                         });
 
-                        runner = new VMTestRunner(artifactManager, true);
+                        runner = new TxRunner(artifactManager, true);
 
-                        await runner.runTestCase(testJSON);
+                        await runner.runScenario(testJSON);
                     });
 
                     it("Transaction produced expected results", () => {
