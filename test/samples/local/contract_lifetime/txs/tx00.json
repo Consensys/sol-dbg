@@ -1,0 +1,220 @@
+{
+    "initialState": {
+        "accounts": {
+            "0xAaaaAaAAaaaAAaAAaAaaaaAAAAAaAaaaAaAaaAA0": {
+                "nonce": 0,
+                "balance": "0x0000000000000000000000f000000000",
+                "code": "",
+                "storage": {}
+            },
+            "0xAaAaaAAAaAaaAaAaAaaAAaAaAAAAAaAAAaaAaAa2": {
+                "nonce": 0,
+                "balance": "0x0000000000000000000000f000000000",
+                "code": "",
+                "storage": {}
+            },
+            "0xafFEaFFEAFfeAfFEAffeaFfEAfFEaffeafFeAFfE": {
+                "nonce": 0,
+                "balance": "0x0000000000000000000000f000000000",
+                "code": "",
+                "storage": {}
+            }
+        }
+    },
+    "steps": [
+        {
+            "address": "0x0000000000000000000000000000000000000000",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x6080604052348015600e575f80fd5b5f80fdfe",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": 1,
+            "blockTime": 1,
+            "result": {
+                "kind": "revert"
+            },
+            "liveContracts": []
+        },
+        {
+            "address": "0x0000000000000000000000000000000000000000",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x6080604052348015600e575f80fd5b5060818061001b5f395ff3fe6080604052348015600e575f80fd5b50600436106026575f3560e01c806335f4699414602a575b5f80fd5b60306032565b005b5f73ffffffffffffffffffffffffffffffffffffffff16fffea2646970667358221220aac49067c690fc4a7a711ec18c9a8b6accf3004cea6deef0a7f51a029997a97e64736f6c63430008150033",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": 1,
+            "blockTime": 1,
+            "result": {
+                "kind": "contract_created",
+                "address": "0x1faca6f2f8e169c54e0b1fe6d889dfc21ab5737e"
+            },
+            "liveContracts": []
+        },
+        {
+            "address": "0x1faca6f2f8e169c54e0b1fe6d889dfc21ab5737e",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x35f46994",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": 2,
+            "blockTime": 2,
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            },
+            "liveContracts": ["0x1faca6f2f8e169c54e0b1fe6d889dfc21ab5737e"]
+        },
+        {
+            "address": "0x0000000000000000000000000000000000000000",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x608060405234801561000f575f80fd5b5060405161001c90610079565b604051809103905ff080158015610035573d5f803e3d5ffd5b505f806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff160217905550610085565b609c8061011283390190565b6081806100915f395ff3fe6080604052348015600e575f80fd5b50600436106026575f3560e01c806335f4699414602a575b5f80fd5b60306032565b005b5f73ffffffffffffffffffffffffffffffffffffffff16fffea264697066735822122022b5ad5f782b0bc41d4425d4f3537930800b64da0c6d3808b7c1cfc35533989364736f6c634300081500336080604052348015600e575f80fd5b5060818061001b5f395ff3fe6080604052348015600e575f80fd5b50600436106026575f3560e01c806335f4699414602a575b5f80fd5b60306032565b005b5f73ffffffffffffffffffffffffffffffffffffffff16fffea2646970667358221220aac49067c690fc4a7a711ec18c9a8b6accf3004cea6deef0a7f51a029997a97e64736f6c63430008150033",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": 1,
+            "blockTime": 1,
+            "result": {
+                "kind": "contract_created",
+                "address": "0x66d9baa1e8afa844766e15103b3b2a533304af5b"
+            },
+            "liveContracts": []
+        },
+        {
+            "address": "0x0000000000000000000000000000000000000000",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x608060405234801561000f575f80fd5b5060405161001c90610064565b604051809103905ff0801561002e5760015b1561003557505b5f60405161004290610070565b604051809103905ff08015801561005b573d5f803e3d5ffd5b5090505061007c565b60138061010983390190565b609c8061011c83390190565b6081806100885f395ff3fe6080604052348015600e575f80fd5b50600436106026575f3560e01c806335f4699414602a575b5f80fd5b60306032565b005b5f73ffffffffffffffffffffffffffffffffffffffff16fffea264697066735822122005e088379ce3c7f9582da2f32848f32e2a0e0351d10b82981d122e2f0ac9963664736f6c634300081500336080604052348015600e575f80fd5b5f80fdfe6080604052348015600e575f80fd5b5060818061001b5f395ff3fe6080604052348015600e575f80fd5b50600436106026575f3560e01c806335f4699414602a575b5f80fd5b60306032565b005b5f73ffffffffffffffffffffffffffffffffffffffff16fffea2646970667358221220aac49067c690fc4a7a711ec18c9a8b6accf3004cea6deef0a7f51a029997a97e64736f6c63430008150033",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": 1,
+            "blockTime": 1,
+            "result": {
+                "kind": "contract_created",
+                "address": "0x8d57cb6b2c9889b43514e729b70c17d7afb8227c"
+            },
+            "liveContracts": [
+                "0x66d9baa1e8afa844766e15103b3b2a533304af5b",
+                "0x5706659cf82b70d4b805ba2e9540cbc1b60fec22"
+            ]
+        },
+        {
+            "address": "0x8d57cb6b2c9889b43514e729b70c17d7afb8227c",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x35f46994",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": 2,
+            "blockTime": 2,
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            },
+            "liveContracts": [
+                "0x5706659cf82b70d4b805ba2e9540cbc1b60fec22",
+                "0x66d9baa1e8afa844766e15103b3b2a533304af5b",
+                "0x8d57cb6b2c9889b43514e729b70c17d7afb8227c",
+                "0x99ef7cc5214b804f7ffba13c70a2d7c2f9763d60"
+            ]
+        },
+        {
+            "address": "0x5706659cf82b70d4b805ba2e9540cbc1b60fec22",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x35f46994",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": 2,
+            "blockTime": 2,
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            },
+            "liveContracts": [
+                "0x5706659cf82b70d4b805ba2e9540cbc1b60fec22",
+                "0x66d9baa1e8afa844766e15103b3b2a533304af5b",
+                "0x99ef7cc5214b804f7ffba13c70a2d7c2f9763d60"
+            ]
+        },
+        {
+            "address": "0x66d9baa1e8afa844766e15103b3b2a533304af5b",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x35f46994",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": 2,
+            "blockTime": 2,
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            },
+            "liveContracts": [
+                "0x66d9baa1e8afa844766e15103b3b2a533304af5b",
+                "0x99ef7cc5214b804f7ffba13c70a2d7c2f9763d60"
+            ]
+        },
+        {
+            "address": "0x99ef7cc5214b804f7ffba13c70a2d7c2f9763d60",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x35f46994",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": 2,
+            "blockTime": 2,
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            },
+            "liveContracts": ["0x99ef7cc5214b804f7ffba13c70a2d7c2f9763d60"]
+        },
+        {
+            "address": "0x99ef7cc5214b804f7ffba13c70a2d7c2f9763d60",
+            "gasLimit": "0xff0000",
+            "gasPrice": "0x1",
+            "input": "0x35f46994",
+            "origin": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "value": "0x0",
+            "blockCoinbase": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa0",
+            "blockDifficulty": "0xc",
+            "blockGasLimit": "0xff0000",
+            "blockNumber": 2,
+            "blockTime": 2,
+            "result": {
+                "kind": "value_returned",
+                "value": ""
+            },
+            "liveContracts": []
+        }
+    ]
+}
