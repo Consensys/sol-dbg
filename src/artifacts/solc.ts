@@ -24,9 +24,23 @@ export interface SourceDescription {
     contents?: string;
 }
 
+export type RangeList = Array<{ start: number; length: number }>;
+
+export interface LinkReferences {
+    [fileName: string]: {
+        [contractName: string]: RangeList;
+    };
+}
+
+export interface ImmutableReferences {
+    [number: string | number]: RangeList;
+}
+
 export interface PartialBytecodeDescription {
     object: UnprefixedHexString;
     sourceMap: string;
+    linkReferences?: LinkReferences;
+    immutableReferences?: ImmutableReferences;
     generatedSources?: SourceDescription[];
 }
 

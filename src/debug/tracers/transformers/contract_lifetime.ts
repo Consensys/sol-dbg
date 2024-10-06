@@ -44,7 +44,7 @@ export function getContractGenKillSet(
         [new Set(), new Set()]
     );
 
-    if (res && res.createdAddress !== undefined) {
+    if (res && res.createdAddress !== undefined && res.execResult.exceptionError === undefined) {
         gen.add(res.createdAddress.toString());
     }
 

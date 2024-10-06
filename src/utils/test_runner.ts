@@ -11,6 +11,7 @@ import {
     ContractStates,
     decodeContractStates,
     FoundryTxResult,
+    getContractGenKillSet,
     getKeccakPreimages,
     IArtifactManager,
     KeccakPreimageMap,
@@ -19,6 +20,7 @@ import {
 import { StorageDecodeTracer } from "../debug/tracers/storage_decode_tracer";
 import { map_add } from "./map";
 import { hexStrToBuf32, makeFakeTransaction, ZERO_ADDRESS_STRING } from "./misc";
+import { set_add, set_subtract } from "./set";
 
 export interface TxDesc {
     address: HexString;
@@ -124,9 +126,9 @@ export class TxRunner {
 
             await (stateManager as DefaultStateManager).flush();
 
-            if (res.createdAddress) {
-                contractsBefore.add(res.createdAddress.toString());
-            }
+            const [gen, kill] = getContractGenKillSet(trace, res);
+            set_add(contractsBefore, gen);
+            set_subtract(contractsBefore, kill);
 
             // Update the keccak map
             const txKeccakPreimages = getKeccakPreimages(trace);

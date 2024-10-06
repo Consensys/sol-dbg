@@ -393,6 +393,23 @@ describe("Local tests", () => {
                             }
                         });
                     }
+
+                    if (forAny(testJSON.steps, (step) => step.liveContracts !== undefined)) {
+                        it("Live contracts before tx ok (if specified)", async () => {
+                            for (let i = 0; i < runner.txs.length; i++) {
+                                const curStep = testJSON.steps[i];
+
+                                if (curStep.liveContracts === undefined) {
+                                    continue;
+                                }
+
+                                const tx = runner.txs[i];
+                                const contractsBefore = runner.getContractsBefore(tx);
+
+                                expect(contractsBefore).toEqual(new Set(curStep.liveContracts));
+                            }
+                        });
+                    }
                 });
             }
         });

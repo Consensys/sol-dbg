@@ -48,6 +48,7 @@ export interface TestStep extends TxDesc {
     errorPathPrefix?: string;
     layoutBefore?: ContractStates;
     layoutAtFailure?: ContractStates;
+    liveContracts?: string[];
 }
 
 export interface TestCase extends Scenario {
