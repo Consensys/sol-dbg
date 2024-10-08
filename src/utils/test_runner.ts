@@ -285,7 +285,10 @@ export class TxRunner {
         tx: TypedTransaction,
         stepNum: number
     ): Promise<ContractStates | undefined> {
-        const tracer = new StorageDecodeTracer(this.artifactManager);
+        const tracer = new StorageDecodeTracer(this.artifactManager, {
+            strict: true,
+            foundryCheatcodes: this._foundryCheatcodes
+        });
 
         const liveContracts = new Set(this.getContractsBefore(tx));
         const preimages = new Map(this.getKeccakPreimagesBefore(tx));
