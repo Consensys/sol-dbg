@@ -33,7 +33,7 @@ export interface StorageDecodeTracerCtx {
     targetSteps: Set<number>;
 }
 
-function reducer(
+export function accumulateContractsAndKeccak(
     state: ContractLifeTimeInfo & Keccak256InvertInfo,
     ctx: StorageDecodeTracerCtx
 ): void {
@@ -78,7 +78,7 @@ export class StorageDecodeTracer extends BaseSolTxTracer<
         const contracLifetimeInfo = addContractLifetimeInfo(vm, step, extFrameInfo, trace);
         const keccakInfo = addKeccakInvertInfo(vm, step, contracLifetimeInfo, trace);
 
-        reducer(keccakInfo, ctx);
+        accumulateContractsAndKeccak(keccakInfo, ctx);
 
         if (!ctx.targetSteps.has(trace.length)) {
             return [keccakInfo, ctx];
