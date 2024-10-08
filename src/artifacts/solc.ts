@@ -49,6 +49,7 @@ export interface PartialCompiledContract {
         bytecode: PartialBytecodeDescription;
         deployedBytecode: PartialBytecodeDescription;
     };
+    metadata?: string;
 }
 
 export interface PartialSolcOutput {

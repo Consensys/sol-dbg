@@ -22,9 +22,9 @@ import {
     PartialSolcOutput,
     RawAST,
     UnprefixedHexString,
+    detectArtifactCompilerVersion,
     fastParseBytecodeSourceMapping,
     findContractDef,
-    getArtifactCompilerVersion,
     getCodeHash,
     getCreationCodeHash
 } from "../..";
@@ -158,18 +158,30 @@ export class ArtifactManager implements IArtifactManager {
         return ABIEncoderVersion.V1;
     }
 
-    constructor(artifacts: PartialSolcOutput[]) {
+    constructor(artifacts: Array<PartialSolcOutput | [PartialSolcOutput, string]>) {
         this._artifacts = [];
         this._contracts = [];
         this._mdHashToContractInfo = new Map<string, ContractInfo>();
         this._creationBytecodeTemplates = [];
         this._deployedBytecodeTemplates = [];
 
-        for (const artifact of artifacts) {
+        for (const arg of artifacts) {
             const reader = new ASTReader();
-            const compilerVersion = getArtifactCompilerVersion(artifact);
+            let artifact: PartialSolcOutput;
+            let compilerVersion: string;
 
-            assert(compilerVersion !== undefined, `Couldn't find compiler version for artifact`);
+            if (arg instanceof Array) {
+                [artifact, compilerVersion] = arg;
+            } else {
+                artifact = arg;
+                const maybeCompilerVersion = detectArtifactCompilerVersion(artifact);
+                assert(
+                    maybeCompilerVersion !== undefined,
+                    `Couldn't find compiler version for artifact`
+                );
+
+                compilerVersion = maybeCompilerVersion;
+            }
 
             const units = reader.read(artifact);
             const abiEncoderVersion = this.pickABIEncoderVersion(units, compilerVersion);

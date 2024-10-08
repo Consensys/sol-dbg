@@ -1,6 +1,6 @@
 import { Decoder } from "cbor";
 import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
-import { assert } from "solc-typed-ast";
+import { assert, isExact } from "solc-typed-ast";
 import { readInt16Be, toHexString } from "..";
 import { HexString, PartialSolcOutput, UnprefixedHexString } from "./solc";
 
@@ -149,7 +149,7 @@ function getBytecodeHashHacky(bytecode: string | Uint8Array): ContractMdStruct |
 
 function getDeployedBytecodeMdInfo(
     deployedBytecode: UnprefixedHexString | Uint8Array
-): ContractMdStruct {
+): ContractMdStruct | undefined {
     const len = deployedBytecode.length;
 
     let rawMd: any = {};
@@ -174,6 +174,7 @@ function getDeployedBytecodeMdInfo(
     } catch {
         // The contract bytecode may not have metadata, which would result in random crashes in the decoder.
         // Catch those so we don't end up crashing in the absence of metadata.
+        return undefined;
     }
 
     const res: ContractMdStruct = {};
@@ -203,6 +204,10 @@ function getDeployedBytecodeMdInfo(
 
 export function getCodeHash(deplBytecode: UnprefixedHexString | Uint8Array): HexString | undefined {
     const md = getDeployedBytecodeMdInfo(deplBytecode);
+
+    if (!md) {
+        return undefined;
+    }
 
     // TODO: Should we prefix the hash with the hash type? bzzr0/ipfs
     if (md.bzzr0 !== undefined) {
@@ -241,6 +246,8 @@ export function getCreationCodeHash(
     return undefined;
 }
 
+const longVersion = /([0-9]+\.[0-9]+\.[0-9]+)\+.*/;
+
 /**
  * Given a standard solc JSON output `artifact` find the compiler version used
  * to compute the contracts.  We do this by walking over all of the bytecodes in
@@ -248,25 +255,47 @@ export function getCreationCodeHash(
  * contract. If all contracts in the artifact agree on the version they report,
  * we return that.
  */
-export function getArtifactCompilerVersion(artifact: PartialSolcOutput): string | undefined {
-    let res: string | undefined;
-
+export function detectArtifactCompilerVersion(artifact: PartialSolcOutput): string | undefined {
     for (const fileName in artifact.contracts) {
         for (const contractName in artifact.contracts[fileName]) {
-            const version = getDeployedBytecodeMdInfo(
-                artifact.contracts[fileName][contractName].evm.deployedBytecode.object
-            ).solc;
+            const contractArtifact = artifact.contracts[fileName][contractName];
 
-            assert(
-                !(version !== undefined && res !== undefined && version !== res),
-                `Unexpected different compiler versions in the same artifact: ${version} and ${res}`
-            );
+            if (contractArtifact.evm.deployedBytecode.object.length === 0) {
+                continue;
+            }
 
-            res = version;
+            const md = getDeployedBytecodeMdInfo(contractArtifact.evm.deployedBytecode.object);
+
+            if (md !== undefined && md.solc !== undefined) {
+                return md.solc;
+            }
+
+            if (contractArtifact.metadata === undefined) {
+                continue;
+            }
+
+            try {
+                const mdJson = JSON.parse(contractArtifact.metadata);
+
+                if (mdJson.compiler && mdJson.compiler.version) {
+                    if (isExact(mdJson.compiler.version)) {
+                        return mdJson.compiler.version;
+                    }
+
+                    const m = mdJson.compiler.version.match(longVersion);
+
+                    if (m !== null) {
+                        return m[1];
+                    }
+                }
+            } catch (e) {
+                // Nothing to do;
+                console.error(e); // @todo remove
+            }
         }
     }
 
-    return res;
+    return undefined;
 }
 
 export function isPartialSolcOutput(arg: any): arg is PartialSolcOutput {
