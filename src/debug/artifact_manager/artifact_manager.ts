@@ -62,7 +62,7 @@ export interface ContractInfo {
     ast: ContractDefinition | undefined;
     bytecode: BytecodeInfo;
     deployedBytecode: BytecodeInfo;
-    mdHash: PrefixedHexString;
+    mdHash: PrefixedHexString | undefined;
 }
 
 export interface ArtifactInfo {
@@ -231,6 +231,10 @@ export class ArtifactManager implements IArtifactManager {
                     const generatedFileMap = new Map<number, SourceFileInfo>();
                     const deployedGeneratedFileMap = new Map<number, SourceFileInfo>();
 
+                    if (contractArtifact.evm.deployedBytecode.object.length === 0) {
+                        continue;
+                    }
+
                     for (const [srcMap, bytecodeInfo] of [
                         [generatedFileMap, contractArtifact.evm.bytecode],
                         [deployedGeneratedFileMap, contractArtifact.evm.deployedBytecode]
@@ -252,11 +256,6 @@ export class ArtifactManager implements IArtifactManager {
                     }
 
                     const hash = getCodeHash(contractArtifact.evm.deployedBytecode.object);
-
-                    assert(
-                        hash !== undefined,
-                        `Couldn't find md in bytecode for ${contractName} from ${fileName}`
-                    );
 
                     const contractInfo: ContractInfo = {
                         artifact: artifactInfo,
@@ -287,7 +286,9 @@ export class ArtifactManager implements IArtifactManager {
 
                     this._contracts.push(contractInfo);
 
-                    this._mdHashToContractInfo.set(hash, contractInfo);
+                    if (hash !== undefined) {
+                        this._mdHashToContractInfo.set(hash, contractInfo);
+                    }
 
                     this._creationBytecodeTemplates.push(
                         makeTemplate(contractArtifact.evm.bytecode)

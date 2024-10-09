@@ -177,6 +177,10 @@ function getDeployedBytecodeMdInfo(
         return undefined;
     }
 
+    if (rawMd === undefined) {
+        return undefined;
+    }
+
     const res: ContractMdStruct = {};
 
     if (rawMd.hasOwnProperty("ipfs")) {

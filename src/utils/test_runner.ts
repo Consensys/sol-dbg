@@ -292,7 +292,7 @@ export class TxRunner {
 
         const liveContracts = new Set(this.getContractsBefore(tx));
         const preimages = new Map(this.getKeccakPreimagesBefore(tx));
-        const [trace, ,] = await tracer.debugTx(tx, this.getBlock(tx), this.getStateBeforeTx(tx), {
+        const [trace, ,] = await this.debug(tx, tracer, {
             liveContracts,
             preimages,
             targetSteps: new Set([stepNum])
@@ -305,5 +305,16 @@ export class TxRunner {
         assert(trace[stepNum].decodedStorage !== undefined, ``);
 
         return trace[stepNum].decodedStorage;
+    }
+
+    async debug<StepT, CtxT>(
+        tx: TypedTransaction,
+        tracer: BaseSolTxTracer<StepT, CtxT>,
+        ctx: CtxT
+    ): Promise<[StepT[], FoundryTxResult, EVMStateManagerInterface, CtxT]> {
+        const block = this.getBlock(tx);
+        const stateBefore = this.getStateBeforeTx(tx);
+
+        return await tracer.debugTx(tx, block, stateBefore, ctx);
     }
 }
