@@ -126,7 +126,8 @@ function makeCallFrame(
         arguments: args,
         codeMdHash: codeHash,
         codeAddress,
-        internalFrames: []
+        internalFrames: [],
+        internalFramesBroken: false
     };
 }
 
@@ -158,7 +159,8 @@ function makeCreationFrame(
         startStep: step,
         arguments: args,
         codeMdHash: getCreationCodeHash(data),
-        internalFrames: []
+        internalFrames: [],
+        internalFramesBroken: false
     };
 }
 

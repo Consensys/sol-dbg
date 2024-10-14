@@ -131,7 +131,9 @@ export function flattenStack(s: ExternalFrame[]): Frame[] {
     const res: Frame[] = [];
     for (let i = 0; i < s.length; i++) {
         res.push(s[i]);
-        res.push(...s[i].internalFrames);
+        if (!s[i].internalFramesBroken) {
+            res.push(...s[i].internalFrames);
+        }
     }
 
     return res;
@@ -251,6 +253,9 @@ export function ppStackTrace(
         } else if (frame.kind === FrameKind.Call) {
             if (frame.info === undefined) {
                 frameStr = `<unknown function(s) in contract ${frame.address.toString()}>`;
+            } else if (frame.internalFramesBroken) {
+                frameStr = fileName + " ";
+                frameStr += `${funName}(${funArgs})`;
             } else {
                 // If we have debug info for this contract ignore the external frame - it will duplicate the internal frame
                 continue;

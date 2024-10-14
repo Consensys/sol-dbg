@@ -73,6 +73,9 @@ export interface BaseExternalFrame extends BaseFrame {
     readonly code: Uint8Array;
     readonly codeMdHash: HexString | undefined;
     internalFrames: InternalCallFrame[];
+    // Set if the internal frame decoding detects broken traces due to
+    // invalid source maps in the presence of optimizations
+    internalFramesBroken: boolean;
 }
 
 /**

@@ -3,6 +3,7 @@ import { VM } from "@ethereumjs/vm";
 import { assert, FunctionDefinition, TypeNode, VariableDeclaration } from "solc-typed-ast";
 import { ContractInfo, IArtifactManager } from "../../artifact_manager";
 import { isCalldataType2Slots } from "../../decoding";
+import { OPCODES } from "../../opcodes";
 import {
     DataLocationKind,
     DataView,
@@ -105,6 +106,12 @@ export async function addInternalFrame<
 
     // External call/return - no change to internal stack
     if (lastStep.depth !== state.depth) {
+        if (lastStep.op.opcode === OPCODES.RETURN) {
+            const lastExtFrame = topExtFrame(lastStep.stack);
+            // If we had a normal return with multiple stack frames left in the last frame, then it was probably broken
+            lastExtFrame.internalFramesBroken =
+                lastExtFrame.internalFramesBroken || lastExtFrame.internalFrames.length > 1;
+        }
         return state;
     }
 
@@ -180,7 +187,9 @@ export async function addInternalFrame<
                 curFrame.kind
             );
         } else {
-            // @todo log an error somewhere
+            if (curFrame.kind !== FrameKind.InternalCall) {
+                curExtFrame.internalFramesBroken = true;
+            }
         }
 
         return {
