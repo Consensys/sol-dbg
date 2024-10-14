@@ -104,6 +104,15 @@ export async function addInternalFrame<
 
     const lastStep = trace[trace.length - 1];
 
+    // If we are ending execution, and still have leftover internal frames, then internal frame decoding
+    // is probably broken.
+    if (state.op.opcode === OPCODES.STOP) {
+        const curExtFrame = topExtFrame(state.stack);
+
+        curExtFrame.internalFramesBroken =
+            curExtFrame.internalFramesBroken || curExtFrame.internalFrames.length > 1;
+    }
+
     // External call/return - no change to internal stack
     if (lastStep.depth !== state.depth) {
         if (lastStep.op.opcode === OPCODES.RETURN) {
