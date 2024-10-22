@@ -244,7 +244,9 @@ export class ArtifactManager implements IArtifactManager {
 
                         const args: Array<[string, TypeNode, boolean]> = zip3(
                             definition.vParameters.vParameters.map((d) => d.name),
-                            evtType.parameters,
+                            evtType.parameters.map((rawTyp) =>
+                                infer.toABIEncodedType(rawTyp, artifactInfo.abiEncoderVersion)
+                            ),
                             definition.vParameters.vParameters.map((d) => d.indexed)
                         );
 
