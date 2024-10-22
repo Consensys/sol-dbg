@@ -49,7 +49,7 @@ function decodeValInt(
     }
 
     if (loc.kind === DataLocationKind.CallData) {
-        const lastExtFrame = topExtFrame(state.stack);
+        const lastExtFrame = topExtFrame(state);
 
         let abiType: TypeNode;
 
@@ -112,7 +112,7 @@ export function decodeValue(
         let pointedToLoc: MemoryLocation;
 
         if (isCalldataType2Slots(typ)) {
-            const lastExtFrame = topExtFrame(state.stack);
+            const lastExtFrame = topExtFrame(state);
 
             let abiType: TypeNode;
 

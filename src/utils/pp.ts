@@ -33,7 +33,9 @@ import {
 } from "../debug";
 import {
     decodeSourceLoc,
+    ExternalFrameInfo,
     getContractInfo,
+    InternalFrameInfo,
     MapKeys,
     topExtFrame
 } from "../debug/tracers/transformers";
@@ -127,13 +129,28 @@ function ppValue(typ: TypeNode, v: any, infer: InferType): string {
     throw new Error(`NYI ppValue of type ${typ.pp()}`);
 }
 
-export function flattenStack(s: ExternalFrame[]): Frame[] {
+export function flattenStack(
+    step: InternalFrameInfo & ExternalFrameInfo,
+    trace: Array<InternalFrameInfo & ExternalFrameInfo>
+): Frame[] {
     const res: Frame[] = [];
-    for (let i = 0; i < s.length; i++) {
-        res.push(s[i]);
-        if (!s[i].internalFramesBroken) {
-            res.push(...s[i].internalFrames);
+
+    while (true) {
+        const curExtFrame = topExtFrame(step);
+
+        if (step.intStack) {
+            res.unshift(...step.intStack);
         }
+
+        res.unshift(curExtFrame);
+
+        assert(curExtFrame.startStep > 0 || step.stack.length === 1, ``);
+
+        if (curExtFrame.startStep === 0) {
+            break;
+        }
+
+        step = trace[curExtFrame.startStep - 1];
     }
 
     return res;
@@ -142,12 +159,12 @@ export function flattenStack(s: ExternalFrame[]): Frame[] {
 export function ppStackTrace(
     solDbg: SolTxDebugger,
     trace: StepState[],
-    extStack: ExternalFrame[],
+    step: StepState,
     curOffset: number,
     mapKeys?: MapKeys
 ): string {
     const res: string[] = [];
-    const stack = flattenStack(extStack);
+    const stack = flattenStack(step, trace);
 
     for (let i = 0; i < stack.length; i++) {
         const frame = stack[i];
@@ -253,9 +270,6 @@ export function ppStackTrace(
         } else if (frame.kind === FrameKind.Call) {
             if (frame.info === undefined) {
                 frameStr = `<unknown function(s) in contract ${frame.address.toString()}>`;
-            } else if (frame.internalFramesBroken) {
-                frameStr = fileName + " ";
-                frameStr += `${funName}(${funArgs})`;
             } else {
                 // If we have debug info for this contract ignore the external frame - it will duplicate the internal frame
                 continue;
@@ -346,7 +360,7 @@ export function debugDumpTrace(
 
         const srcString = printStepSourceString(
             step,
-            topExtFrame(step.stack),
+            topExtFrame(step),
             sources,
             artifactManager,
             prefix
@@ -365,7 +379,7 @@ export function ppStep(step: StepState): string {
 
     let contractId: string;
 
-    const extFrame = topExtFrame(step.stack);
+    const extFrame = topExtFrame(step);
     const code: Uint8Array = extFrame.code;
     const codeMdHash: string | undefined = extFrame.codeMdHash;
     const contractInfo = getContractInfo(step);

@@ -12,7 +12,7 @@ export function findLastNonInternalStepBeforeStepI(
     trace: StepState[],
     i: number
 ): StepState | undefined {
-    const stack = flattenStack(trace[i].stack);
+    const stack = flattenStack(trace[i], trace);
 
     for (let j = stack.length - 1; j >= 0; j--) {
         if (stack[j].callee instanceof FunctionDefinition) {

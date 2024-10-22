@@ -77,7 +77,7 @@ export function addContractLifetimeInfo<T extends object & BasicStepInfo & Exter
 
     // Case 2: We return from a
     const lastStep = trace[trace.length - 1];
-    const lastStepFrame = topExtFrame(lastStep.stack);
+    const lastStepFrame = topExtFrame(lastStep);
 
     // Successful return from a creation frame
     if (

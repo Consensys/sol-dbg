@@ -19,9 +19,7 @@ import {
     DataLocationKind,
     DataView,
     ExternalFrame,
-    Frame,
-    FrameKind,
-    isFrame
+    FrameKind
 } from "../../types";
 import { BasicStepInfo } from "./basic_info";
 
@@ -29,17 +27,9 @@ export interface ExternalFrameInfo {
     stack: ExternalFrame[];
 }
 
-export function topExtFrame(arg: ExternalFrame[] | ExternalFrameInfo | Frame): ExternalFrame {
-    if (isFrame(arg)) {
-        return arg.kind === FrameKind.InternalCall ? arg.nearestExtFrame : arg;
-    }
-
-    if (!(arg instanceof Array)) {
-        arg = arg.stack;
-    }
-
-    assert(arg.length > 0, `Empty stack!`);
-    return arg[arg.length - 1];
+export function topExtFrame(arg: ExternalFrameInfo): ExternalFrame {
+    assert(arg.stack.length > 0, `Empty stack!`);
+    return arg.stack[arg.stack.length - 1];
 }
 
 export function getContractInfo(step: ExternalFrameInfo): ContractInfo | undefined {
@@ -126,8 +116,7 @@ function makeCallFrame(
         arguments: args,
         codeMdHash: codeHash,
         codeAddress,
-        internalFrames: [],
-        internalFramesBroken: false
+        internalFramesSus: false
     };
 }
 
@@ -159,8 +148,7 @@ function makeCreationFrame(
         startStep: step,
         arguments: args,
         codeMdHash: getCreationCodeHash(data),
-        internalFrames: [],
-        internalFramesBroken: false
+        internalFramesSus: false
     };
 }
 
@@ -296,24 +284,24 @@ export async function addExternalFrame<T extends object & BasicStepInfo>(
             ...state
         };
     } else {
-        const stack = [...lastStep.stack];
+        const newStack = [...lastStep.stack];
         // External return or exception
         let nFramesPopped = lastStep.depth - state.depth;
 
         // Pop as many external frames as neccessary to match the decrease in
         // depth reported by web3. We need the loop since we don't count the internal frames as decreasing depth
-        while (nFramesPopped > 0 && stack.length > 0) {
-            const topFrame = stack[stack.length - 1];
+        while (nFramesPopped > 0 && newStack.length > 0) {
+            const topFrame = newStack[newStack.length - 1];
 
             if (topFrame.kind === FrameKind.Creation || topFrame.kind === FrameKind.Call) {
                 nFramesPopped--;
             }
 
-            stack.pop();
+            newStack.pop();
         }
 
         return {
-            stack: stack,
+            stack: newStack,
             ...state
         };
     }

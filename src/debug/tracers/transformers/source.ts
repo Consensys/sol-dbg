@@ -47,7 +47,7 @@ export async function addSource<T extends object & BasicStepInfo & ExternalFrame
     step: InterpreterStep,
     state: T
 ): Promise<T & SourceInfo> {
-    const [src, astNode] = decodeSourceLoc(state.pc, topExtFrame(state.stack));
+    const [src, astNode] = decodeSourceLoc(state.pc, topExtFrame(state));
 
     return {
         src,

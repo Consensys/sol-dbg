@@ -11,7 +11,7 @@ import {
 } from "./transformers";
 import { addEventInfo } from "./transformers/events";
 import { addExternalFrame } from "./transformers/ext_stack";
-import { addInternalFrame } from "./transformers/int_stack";
+import { addInternalFrameInfo } from "./transformers/int_stack";
 import { addSource } from "./transformers/source";
 
 export class SolTxDebugger extends MapOnlyTracer<StepState> {
@@ -32,7 +32,7 @@ export class SolTxDebugger extends MapOnlyTracer<StepState> {
             tx
         );
         const source = await addSource(vm, step, extFrameInfo);
-        const intStack = await addInternalFrame(
+        const intStack = await addInternalFrameInfo(
             vm,
             step,
             source,

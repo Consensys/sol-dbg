@@ -7,7 +7,6 @@ import { OPCODES } from "../../opcodes";
 import {
     DataLocationKind,
     DataView,
-    ExternalFrame,
     Frame,
     FrameKind,
     InternalCallFrame,
@@ -17,18 +16,22 @@ import { BasicStepInfo } from "./basic_info";
 import { ExternalFrameInfo, topExtFrame } from "./ext_stack";
 import { SourceInfo } from "./source";
 
-export function topFrame(stack: ExternalFrame[] | ExternalFrameInfo): Frame {
-    const topExt = topExtFrame(stack);
+export interface InternalFrameInfo {
+    intStack: InternalCallFrame[];
+}
 
-    if (topExt.internalFrames === undefined || topExt.internalFrames.length === 0) {
-        return topExt;
+function topFrame(step: InternalFrameInfo & ExternalFrameInfo & BasicStepInfo): Frame {
+    if (step.intStack.length > 0) {
+        return step.intStack[step.intStack.length - 1];
     }
 
-    return topExt.internalFrames[topExt.internalFrames.length - 1];
+    assert(step.stack.length > 0, `Unexpected empty stack in step at pc {0}`, step.pc);
+    return step.stack[step.stack.length - 1];
 }
 
 /**
- * WIP: TODO document
+ * Given a callable (function definition or public state variable) try to build
+ * `DataView`s for all the callable arguments. On failure return undefined.
  */
 function buildFunArgViews(
     callee: FunctionDefinition | VariableDeclaration,
@@ -87,42 +90,55 @@ function buildFunArgViews(
 /**
  * Adds external frame info for each step
  */
-export async function addInternalFrame<
+export async function addInternalFrameInfo<
     T extends object & BasicStepInfo & ExternalFrameInfo & SourceInfo
 >(
     vm: VM,
     step: InterpreterStep,
     state: T,
-    trace: T[],
+    trace: Array<T & InternalFrameInfo>,
     artifactManager: IArtifactManager,
     strict: boolean
-): Promise<T> {
-    // No internal stack frame on first step of trace
+): Promise<T & InternalFrameInfo> {
+    // No internal stack frame on first step of trace. We are in the contract preamble
     if (trace.length === 0) {
-        return state;
+        return {
+            ...state,
+            intStack: []
+        };
     }
 
     const lastStep = trace[trace.length - 1];
 
-    // If we are ending execution, and still have leftover internal frames, then internal frame decoding
-    // is probably broken.
-    if (state.op.opcode === OPCODES.STOP) {
-        const curExtFrame = topExtFrame(state.stack);
-
-        curExtFrame.internalFramesBroken =
-            curExtFrame.internalFramesBroken || curExtFrame.internalFrames.length > 1;
-    }
-
-    // External call/return - no change to internal stack
-    if (lastStep.depth !== state.depth) {
+    // Return/exception
+    if (state.depth < lastStep.depth) {
+        // Check if upon normal return there were leftover internal stack frames in previous context
         if (lastStep.op.opcode === OPCODES.RETURN) {
-            const lastExtFrame = topExtFrame(lastStep.stack);
+            const lastExtFrame = topExtFrame(lastStep);
+
             // If we had a normal return with multiple stack frames left in the last frame, then it was probably broken
-            lastExtFrame.internalFramesBroken =
-                lastExtFrame.internalFramesBroken || lastExtFrame.internalFrames.length > 1;
+            lastExtFrame.internalFramesSus =
+                lastExtFrame.internalFramesSus || lastStep.intStack.length > 1;
         }
-        return state;
+
+        // Assume we return in the same internal stack as right before we made the call
+        const lastStepBeforeCall = trace[lastStep.stack[state.stack.length].startStep - 1];
+
+        return {
+            ...state,
+            intStack: lastStepBeforeCall.intStack
+        };
     }
+
+    // Call/creation - initially empty internal stack as we start in the contract preamble
+    if (state.depth === lastStep.depth + 1) {
+        return {
+            ...state,
+            intStack: []
+        };
+    }
+
+    assert(state.depth === lastStep.depth, ``);
 
     // There are 2 ways to enter an internal function:
     let enteringInternalFun = false;
@@ -138,7 +154,7 @@ export async function addInternalFrame<
     }
 
     const ast = state.astNode;
-    const curExtFrame = topExtFrame(state.stack);
+    const curExtFrame = topExtFrame(state);
 
     //  2. Fall-through (the previous instruction is literally the pervious instruction in the contract body,
     //      AND the current JUMPDEST corresponds to a whole function, AND the pervious instructions' callee is different
@@ -148,7 +164,7 @@ export async function addInternalFrame<
         state.op.mnemonic === "JUMPDEST" &&
         (ast instanceof FunctionDefinition ||
             (ast instanceof VariableDeclaration && ast.stateVariable)) &&
-        topFrame(lastStep.stack).callee !== ast
+        topFrame(lastStep).callee !== ast
     ) {
         enteringInternalFun = true;
     }
@@ -173,21 +189,15 @@ export async function addInternalFrame<
             arguments: args
         };
 
-        const newInternalFrames = [...curExtFrame.internalFrames, newFrame];
-
         return {
             ...state,
-            stack: [
-                ...state.stack.slice(0, -1),
-                { ...curExtFrame, internalFrames: newInternalFrames }
-            ]
+            intStack: [...lastStep.intStack, newFrame]
         };
     }
 
     // Returning from an internal function call
     if (state.op.mnemonic === "JUMP" && state.src && state.src.jump === "o") {
-        const curFrame = topFrame(state.stack);
-        const newInternalFrames = curExtFrame.internalFrames.slice(0, -1);
+        const curFrame = topFrame(lastStep);
 
         if (strict) {
             assert(
@@ -197,18 +207,18 @@ export async function addInternalFrame<
             );
         } else {
             if (curFrame.kind !== FrameKind.InternalCall) {
-                curExtFrame.internalFramesBroken = true;
+                curExtFrame.internalFramesSus = true;
             }
         }
 
         return {
             ...state,
-            stack: [
-                ...state.stack.slice(0, -1),
-                { ...curExtFrame, internalFrames: newInternalFrames }
-            ]
+            intStack: lastStep.intStack.slice(0, -1)
         };
     }
 
-    return state;
+    return {
+        ...state,
+        intStack: lastStep.intStack
+    };
 }

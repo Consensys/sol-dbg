@@ -72,10 +72,8 @@ export interface BaseExternalFrame extends BaseFrame {
     readonly info?: ContractInfo;
     readonly code: Uint8Array;
     readonly codeMdHash: HexString | undefined;
-    internalFrames: InternalCallFrame[];
-    // Set if the internal frame decoding detects broken traces due to
-    // invalid source maps in the presence of optimizations
-    internalFramesBroken: boolean;
+    // Set if the internal call/returns in a contract dont match up.
+    internalFramesSus: boolean;
 }
 
 /**
@@ -203,6 +201,7 @@ export interface StepVMState {
  */
 export interface StepState extends StepVMState {
     stack: ExternalFrame[];
+    intStack: InternalCallFrame[];
     src: sol.DecodedBytecodeSourceMapEntry | undefined;
     astNode: sol.ASTNode | undefined;
     emittedEvent: EventDesc | undefined;

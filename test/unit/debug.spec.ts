@@ -213,7 +213,7 @@ describe("Local tests", () => {
                             expect(errorStep).not.toBeUndefined();
                             assert(errorStep !== undefined, "Should be catched by prev statement");
 
-                            const lastExtStep = topExtFrame(errorStep.stack);
+                            const lastExtStep = topExtFrame(errorStep);
                             const info = lastExtStep.info;
 
                             expect(info).not.toBeUndefined();
@@ -279,7 +279,7 @@ describe("Local tests", () => {
                                 const actualStackTrace = ppStackTrace(
                                     solDbg,
                                     trace,
-                                    errorStep.stack,
+                                    errorStep,
                                     errorStep.pc
                                 );
 
