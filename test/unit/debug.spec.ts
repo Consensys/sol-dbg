@@ -163,9 +163,10 @@ describe("Local tests", () => {
             for (const txFile of lsJson(`test/samples/local/${sample}/txs`)) {
                 const testJSON: TestCase = fse.readJsonSync(txFile);
 
-                describe(`Tx ${txFile}`, () => {
+                describe(`Scenario ${txFile}`, () => {
                     let solDbg: SolTxDebugger;
                     let runner: TxRunner;
+                    const traces: StepState[][] = [];
 
                     beforeAll(async () => {
                         solDbg = new SolTxDebugger(artifactManager, {
@@ -176,20 +177,25 @@ describe("Local tests", () => {
                         runner = new TxRunner(artifactManager, true);
 
                         await runner.runScenario(testJSON);
+                        for (let i = 0; i < testJSON.steps.length; i++) {
+                            const tx = runner.txs[i];
+                            const block = runner.getBlock(tx);
+                            const stateBefore = runner.getStateBeforeTx(tx);
+                            const [trace] = await solDbg.debugTx(tx, block, stateBefore);
+                            traces.push(trace);
+                        }
                     });
 
-                    it("Transaction produced expected results", () => {
-                        for (let i = 0; i < runner.txs.length; i++) {
+                    it("Transactions produced expected results", () => {
+                        for (let i = 0; i < testJSON.steps.length; i++) {
                             const curStep = testJSON.steps[i];
-
                             expect(checkResult(runner.results[i], curStep)).toBeTruthy();
                         }
                     });
 
                     it("Error maps to correct source location", async () => {
-                        for (let i = 0; i < runner.txs.length; i++) {
+                        for (let i = 0; i < testJSON.steps.length; i++) {
                             const curStep = testJSON.steps[i];
-
                             if (
                                 !(
                                     curStep.result.kind === ResultKind.Revert ||
@@ -200,10 +206,7 @@ describe("Local tests", () => {
                                 continue;
                             }
 
-                            const tx = runner.txs[i];
-                            const block = runner.getBlock(tx);
-                            const stateBefore = runner.getStateBeforeTx(tx);
-                            const [trace] = await solDbg.debugTx(tx, block, stateBefore);
+                            const trace = traces[i];
 
                             const errorStep = getStepFailTraceStep(curStep, trace);
 
@@ -232,7 +235,7 @@ describe("Local tests", () => {
                             expect(fileName).not.toBeUndefined();
 
                             if (!curStep.errorString) {
-                                continue;
+                                return;
                             }
 
                             let fileContents = sources.get(fileName as string);
@@ -258,40 +261,38 @@ describe("Local tests", () => {
                         }
                     });
 
-                    it("Failure stack traces are correct", async () => {
-                        for (let i = 0; i < runner.txs.length; i++) {
-                            const curStep = testJSON.steps[i];
+                    if (forAny(testJSON.steps, (step) => step.errorStack !== undefined)) {
+                        it("Failure stack traces are correct", async () => {
+                            for (let i = 0; i < testJSON.steps.length; i++) {
+                                const curStep = testJSON.steps[i];
+                                const trace = traces[i];
 
-                            if (curStep.errorStack === undefined) {
-                                continue;
+                                if (curStep.errorStack === undefined) {
+                                    continue;
+                                }
+
+                                const errorStep = getStepFailTraceStep(curStep, trace);
+
+                                expect(errorStep).not.toBeUndefined();
+                                assert(errorStep !== undefined, ``);
+
+                                const actualStackTrace = ppStackTrace(
+                                    solDbg,
+                                    trace,
+                                    errorStep.stack,
+                                    errorStep.pc
+                                );
+
+                                expect(
+                                    stackTracesEq(actualStackTrace, curStep.errorStack as string[])
+                                ).toBeTruthy();
                             }
-
-                            const tx = runner.txs[i];
-                            const block = runner.getBlock(tx);
-                            const stateBefore = runner.getStateBeforeTx(tx);
-                            const [trace] = await solDbg.debugTx(tx, block, stateBefore);
-
-                            const errorStep = getStepFailTraceStep(curStep, trace);
-
-                            expect(errorStep).not.toBeUndefined();
-                            assert(errorStep !== undefined, ``);
-
-                            const actualStackTrace = ppStackTrace(
-                                solDbg,
-                                trace,
-                                errorStep.stack,
-                                errorStep.pc
-                            );
-
-                            expect(
-                                stackTracesEq(actualStackTrace, curStep.errorStack)
-                            ).toBeTruthy();
-                        }
-                    });
+                        });
+                    }
 
                     if (forAny(testJSON.steps, (step) => step.layoutBefore !== undefined)) {
                         it("Layouts before tx ok (if specified)", async () => {
-                            for (let i = 0; i < runner.txs.length; i++) {
+                            for (let i = 0; i < testJSON.steps.length; i++) {
                                 const curStep = testJSON.steps[i];
 
                                 if (curStep.layoutBefore === undefined) {
@@ -341,27 +342,15 @@ describe("Local tests", () => {
 
                     if (forAny(testJSON.steps, (step) => step.layoutAtFailure !== undefined)) {
                         it("Layouts at failure ok (if specified)", async () => {
-                            for (let i = 0; i < runner.txs.length; i++) {
+                            for (let i = 0; i < testJSON.steps.length; i++) {
                                 const curStep = testJSON.steps[i];
 
-                                if (curStep.layoutBefore === undefined) {
-                                    continue;
-                                }
-
-                                if (
-                                    !(
-                                        curStep.result.kind === ResultKind.Revert ||
-                                        curStep.result.kind === ResultKind.LastRevert ||
-                                        curStep.result.kind === ResultKind.FoundryFail
-                                    )
-                                ) {
+                                if (curStep.layoutAtFailure === undefined) {
                                     continue;
                                 }
 
                                 const tx = runner.txs[i];
-                                const block = runner.getBlock(tx);
-                                const stateBefore = runner.getStateBeforeTx(tx);
-                                const [trace] = await solDbg.debugTx(tx, block, stateBefore);
+                                const trace = traces[i];
 
                                 const errorStep = getStepFailTraceStep(curStep, trace);
 
@@ -396,7 +385,7 @@ describe("Local tests", () => {
 
                     if (forAny(testJSON.steps, (step) => step.liveContracts !== undefined)) {
                         it("Live contracts before tx ok (if specified)", async () => {
-                            for (let i = 0; i < runner.txs.length; i++) {
+                            for (let i = 0; i < testJSON.steps.length; i++) {
                                 const curStep = testJSON.steps[i];
 
                                 if (curStep.liveContracts === undefined) {
@@ -405,8 +394,36 @@ describe("Local tests", () => {
 
                                 const tx = runner.txs[i];
                                 const contractsBefore = runner.getContractsBefore(tx);
-
                                 expect(contractsBefore).toEqual(new Set(curStep.liveContracts));
+                            }
+                        });
+                    }
+
+                    if (forAny(testJSON.steps, (step) => step.decodedEvents !== undefined)) {
+                        it("Decoded events in TX are correct", async () => {
+                            for (let i = 0; i < testJSON.steps.length; i++) {
+                                const curStep = testJSON.steps[i];
+
+                                if (curStep.decodedEvents === undefined) {
+                                    continue;
+                                }
+
+                                const trace = traces[i];
+
+                                const actualDecodedEvents: Array<[string, Array<[string, any]>]> =
+                                    trace
+                                        .map((step) => step.decodedEvent)
+                                        .filter((x) => x !== undefined)
+                                        .filter(
+                                            (x) =>
+                                                x.name !== "AssertionFailedData" &&
+                                                x.name !== "log_named_address"
+                                        )
+                                        .map((x) => [x.name, sanitizeBigintFromJson(x.args)]);
+
+                                expect(actualDecodedEvents).toEqual(
+                                    curStep.decodedEvents === undefined ? [] : curStep.decodedEvents
+                                );
                             }
                         });
                     }

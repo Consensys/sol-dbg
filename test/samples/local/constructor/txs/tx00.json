@@ -76,7 +76,8 @@
                 "test/samples/local/constructor/contracts/B.sol:19:16 B.failingInt([10], 0x, 0x4b9ecef1f83b9a05af2ab9cd82caca8e7feaf8b4)",
                 "test/samples/local/constructor/contracts/B.sol:10:8 <deploying B.constructor(<unknown>)>",
                 "test/samples/local/constructor/contracts/A.sol:5:14 A.main(9)"
-            ]
+            ],
+            "decodedEvents": [["AssertionFailed", [["message", "0: sup brah"]]]]
         },
         {
             "address": "0xf084a83954ce917799e0b4dbd03934a2ea65888c",
@@ -97,7 +98,7 @@
             "errorStack": [
                 "test/samples/local/constructor/contracts/B.sol:9:17 <deploying B.constructor(<unknown>)>",
                 "test/samples/local/constructor/contracts/A.sol:5:14 A.main(115792089237316195423570985008687907853269984665640564039457584007913129639935)"
-            ] 
+            ]
         }
     ]
 }

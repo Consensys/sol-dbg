@@ -1,22 +1,26 @@
-import { PrefixedHexString } from "@ethereumjs/util";
-import { bytesToHex, hexToBytes } from "ethereum-cryptography/utils";
+import { PrefixedHexString, bytesToBigInt } from "@ethereumjs/util";
+import { keccak256 } from "ethereum-cryptography/keccak";
+import { bytesToHex, hexToBytes, utf8ToBytes } from "ethereum-cryptography/utils";
 import {
     ASTContext,
     ASTNode,
     ASTReader,
     ContractDefinition,
+    EventDefinition,
     FunctionDefinition,
     FunctionVisibility,
     InferType,
     SourceUnit,
     StateVariableVisibility,
+    TypeNode,
     VariableDeclaration,
     assert,
     getABIEncoderVersion
 } from "solc-typed-ast";
-import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
+import { ABIEncoderVersion, abiTypeToCanonicalName } from "solc-typed-ast/dist/types/abi";
 import {
     DecodedBytecodeSourceMapEntry,
+    EventDesc,
     PartialBytecodeDescription,
     PartialCompiledContract,
     PartialSolcOutput,
@@ -26,7 +30,8 @@ import {
     fastParseBytecodeSourceMapping,
     findContractDef,
     getCodeHash,
-    getCreationCodeHash
+    getCreationCodeHash,
+    zip3
 } from "../..";
 import { HexString } from "../../artifacts";
 import { OpcodeInfo } from "../opcodes";
@@ -44,6 +49,7 @@ export interface IArtifactManager {
     findMethod(
         selector: HexString | Uint8Array
     ): [ContractInfo, FunctionDefinition | VariableDeclaration] | undefined;
+    getEventDefInfo(topic: bigint | Uint8Array | EventDesc): EventDefInfo | undefined;
 }
 
 export interface BytecodeInfo {
@@ -89,6 +95,12 @@ export interface SourceFileInfo {
     name: string;
     fileIndex: number;
     type: SourceFileType;
+}
+
+export interface EventDefInfo {
+    definition: EventDefinition;
+    artifact: ArtifactInfo;
+    args: Array<[string, TypeNode, boolean]>;
 }
 
 /**
@@ -140,6 +152,7 @@ export class ArtifactManager implements IArtifactManager {
     private _inferCache = new Map<string, InferType>();
     private _creationBytecodeTemplates: BytecodeTemplate[];
     private _deployedBytecodeTemplates: BytecodeTemplate[];
+    private _topicToEventInfo: Map<bigint, EventDefInfo>;
 
     /**
      * Helper to pick a canonical ABI encode version for a set of units.
@@ -164,6 +177,7 @@ export class ArtifactManager implements IArtifactManager {
         this._mdHashToContractInfo = new Map<string, ContractInfo>();
         this._creationBytecodeTemplates = [];
         this._deployedBytecodeTemplates = [];
+        this._topicToEventInfo = new Map();
 
         for (const arg of artifacts) {
             const reader = new ASTReader();
@@ -223,6 +237,40 @@ export class ArtifactManager implements IArtifactManager {
 
         for (const artifactInfo of this._artifacts) {
             const artifact = artifactInfo.artifact;
+
+            // Find all events and add them to the map
+            for (const unit of artifactInfo.units) {
+                const infer = this.infer(artifactInfo.compilerVersion);
+
+                unit.walkChildren((definition) => {
+                    // @todo support anonymous events as well
+                    if (definition instanceof EventDefinition && !definition.anonymous) {
+                        const evtType = infer.eventDefToType(definition);
+
+                        const args: Array<[string, TypeNode, boolean]> = zip3(
+                            definition.vParameters.vParameters.map((d) => d.name),
+                            evtType.parameters,
+                            definition.vParameters.vParameters.map((d) => d.indexed)
+                        );
+
+                        const topic = bytesToBigInt(
+                            keccak256(
+                                utf8ToBytes(
+                                    `${definition.name}(${args.map((x) => abiTypeToCanonicalName(x[1])).join(",")})`
+                                )
+                            )
+                        );
+
+                        const info: EventDefInfo = {
+                            definition,
+                            artifact: artifactInfo,
+                            args
+                        };
+
+                        this._topicToEventInfo.set(topic, info);
+                    }
+                });
+            }
 
             for (const fileName in artifact.contracts) {
                 for (const contractName in artifact.contracts[fileName]) {
@@ -424,5 +472,23 @@ export class ArtifactManager implements IArtifactManager {
         }
 
         return undefined;
+    }
+
+    getEventDefInfo(arg: bigint | Uint8Array | EventDesc): EventDefInfo | undefined {
+        let topic: bigint;
+
+        if (typeof arg === "bigint") {
+            topic = arg;
+        } else if (arg instanceof Uint8Array) {
+            topic = bytesToBigInt(arg);
+        } else {
+            if (arg.topics.length < 1) {
+                return undefined;
+            }
+
+            topic = bytesToBigInt(arg.topics[0]);
+        }
+
+        return this._topicToEventInfo.get(topic);
     }
 }

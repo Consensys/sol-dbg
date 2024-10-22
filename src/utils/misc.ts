@@ -258,3 +258,28 @@ export function sanitizeBigintFromJson(a: any): any {
 
     return a;
 }
+
+export function zip<T1, T2>(a: T1[], b: T2[]): Array<[T1, T2]> {
+    assert(a.length === b.length, `Mismatch length in zip arrays {0} and {1}`, a.length, b.length);
+
+    const res: Array<[T1, T2]> = [];
+
+    for (let i = 0; i < a.length; i++) {
+        res.push([a[i], b[i]]);
+    }
+
+    return res;
+}
+
+export function zip3<T1, T2, T3>(a: T1[], b: T2[], c: T3[]): Array<[T1, T2, T3]> {
+    assert(a.length === b.length, `Mismatch length in zip arrays {0} and {1}`, a.length, b.length);
+    assert(a.length === c.length, `Mismatch length in zip arrays {0} and {1}`, a.length, c.length);
+
+    const res: Array<[T1, T2, T3]> = [];
+
+    for (let i = 0; i < a.length; i++) {
+        res.push([a[i], b[i], c[i]]);
+    }
+
+    return res;
+}

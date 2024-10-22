@@ -41,7 +41,7 @@ export class SolTxDebugger extends MapOnlyTracer<StepState> {
             this.strict
         );
 
-        const events = await addEventInfo(vm, step, intStack);
+        const events = await addEventInfo(vm, step, intStack, this.artifactManager);
 
         const contractLifetime = await addContractLifetimeInfo(vm, step, events, trace);
 

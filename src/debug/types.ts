@@ -170,7 +170,12 @@ export type Stack = Uint8Array[];
 export type Storage = ImmMap<bigint, Uint8Array>;
 export interface EventDesc {
     payload: Uint8Array;
-    topics: bigint[];
+    topics: Uint8Array[];
+}
+
+export interface DecodedEventDesc {
+    name: string;
+    args: Array<[string, any]>;
 }
 
 /**
@@ -201,6 +206,7 @@ export interface StepState extends StepVMState {
     src: sol.DecodedBytecodeSourceMapEntry | undefined;
     astNode: sol.ASTNode | undefined;
     emittedEvent: EventDesc | undefined;
+    decodedEvent: DecodedEventDesc | undefined;
     contractCreated?: Address;
     contractKilled?: Address;
     keccak?: {

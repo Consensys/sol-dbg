@@ -49,6 +49,10 @@ export interface TestStep extends TxDesc {
     layoutBefore?: ContractStates;
     layoutAtFailure?: ContractStates;
     liveContracts?: string[];
+    decodedEvents?: Array<{
+        name: string;
+        args: Array<[string, any]>;
+    }>;
 }
 
 export interface TestCase extends Scenario {

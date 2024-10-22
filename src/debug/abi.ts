@@ -25,11 +25,22 @@ import {
     VariableDeclaration,
     assert,
     enumToIntType,
+    isReferenceType,
     types
 } from "solc-typed-ast";
 import { ABIEncoderVersion } from "solc-typed-ast/dist/types/abi";
-import { DataLocationKind, DataView, cd_decodeValue } from ".";
-import { getFunctionSelector } from "../utils";
+import {
+    DataLocationKind,
+    DataView,
+    DecodedEventDesc,
+    EventDefInfo,
+    EventDesc,
+    IArtifactManager,
+    LinearMemoryLocation,
+    cd_decodeValue,
+    mem_decodeValue
+} from ".";
+import { getFunctionSelector, zip } from "../utils";
 
 export function changeToLocation(typ: TypeNode, newLoc: SolDataLocation): TypeNode {
     if (typ instanceof PointerType) {
@@ -416,4 +427,107 @@ export function findMethodBySelector(
         }
     }
     return undefined;
+}
+
+/**
+ * Given an `EventDefInfo` and a concrete event `EventDesc`, build `DataView`s for decoding the event arguments.
+ * Supports decoding indexed arguments.
+ */
+function buildEventDataViews(
+    evtDef: EventDefInfo,
+    evtDesc: EventDesc,
+    infer: InferType
+): Array<[string, DataView | number | undefined]> {
+    let staticOff = 0;
+    const res: Array<[string, DataView | number | undefined]> = [];
+
+    const len = evtDesc.payload.length;
+    let topicIdx = evtDef.definition.anonymous ? 0 : 1;
+
+    for (const [name, originalType, indexed] of evtDef.args) {
+        if (indexed) {
+            res.push([name, topicIdx < evtDesc.topics.length ? topicIdx++ : undefined]);
+            continue;
+        }
+
+        // @todo (dimo) Is it ok to hardcode the encoder version here?
+        const typ = toABIEncodedType(originalType, infer, ABIEncoderVersion.V2);
+        const staticSize = abiStaticTypeSize(typ);
+        const loc: LinearMemoryLocation | undefined =
+            staticOff + staticSize <= len
+                ? { kind: DataLocationKind.Memory, address: BigInt(staticOff) }
+                : undefined;
+
+        staticOff += staticSize;
+
+        const val: DataView | undefined = loc
+            ? { type: originalType, abiType: typ, loc }
+            : undefined;
+
+        res.push([name, val]);
+    }
+
+    return res;
+}
+
+/**
+ * Decode a raw event. Currently only supports non-anonmyous events.
+ */
+export function decodeEvent(
+    artifactManager: IArtifactManager,
+    evt: EventDesc
+): DecodedEventDesc | undefined {
+    if (evt.topics.length === 0) {
+        return undefined;
+    }
+
+    const defInfo = artifactManager.getEventDefInfo(evt.topics[0]);
+
+    if (!defInfo) {
+        return undefined;
+    }
+
+    const infer = artifactManager.infer(defInfo.artifact.compilerVersion);
+    const dataViews = buildEventDataViews(defInfo, evt, infer);
+    const argVals: Array<[string, any]> = [];
+
+    for (const [[name, view], [, type]] of zip(dataViews, defInfo.args)) {
+        if (view === undefined) {
+            // Failed building a view
+            argVals.push([name, undefined]);
+            continue;
+        }
+
+        if (typeof view === "number") {
+            if (isReferenceType(type)) {
+                // For indexed reference types just a hash of the value is
+                // stored in the topic. Can't decode.
+                argVals.push([name, undefined]);
+            }
+
+            const decodedVal = mem_decodeValue(
+                type,
+                { kind: DataLocationKind.Memory, address: 0n },
+                evt.topics[view],
+                infer
+            );
+
+            argVals.push([name, decodedVal ? decodedVal[0] : undefined]);
+            continue;
+        }
+
+        const decodedVal = mem_decodeValue(
+            type,
+            view.loc as LinearMemoryLocation,
+            evt.payload,
+            infer
+        );
+
+        argVals.push([name, decodedVal ? decodedVal[0] : undefined]);
+    }
+
+    return {
+        name: defInfo.definition.name,
+        args: argVals
+    };
 }
