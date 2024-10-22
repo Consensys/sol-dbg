@@ -527,7 +527,7 @@ export function decodeEvent(
     }
 
     return {
-        name: defInfo.definition.name,
+        def: defInfo,
         args: argVals
     };
 }

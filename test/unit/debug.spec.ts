@@ -416,10 +416,13 @@ describe("Local tests", () => {
                                         .filter((x) => x !== undefined)
                                         .filter(
                                             (x) =>
-                                                x.name !== "AssertionFailedData" &&
-                                                x.name !== "log_named_address"
+                                                x.def.definition.name !== "AssertionFailedData" &&
+                                                x.def.definition.name !== "log_named_address"
                                         )
-                                        .map((x) => [x.name, sanitizeBigintFromJson(x.args)]);
+                                        .map((x) => [
+                                            x.def.definition.name,
+                                            sanitizeBigintFromJson(x.args)
+                                        ]);
 
                                 expect(actualDecodedEvents).toEqual(
                                     curStep.decodedEvents === undefined ? [] : curStep.decodedEvents

@@ -20,6 +20,7 @@ import {
 import { ABIEncoderVersion, abiTypeToCanonicalName } from "solc-typed-ast/dist/types/abi";
 import {
     DecodedBytecodeSourceMapEntry,
+    EventDefInfo,
     EventDesc,
     PartialBytecodeDescription,
     PartialCompiledContract,
@@ -95,12 +96,6 @@ export interface SourceFileInfo {
     name: string;
     fileIndex: number;
     type: SourceFileType;
-}
-
-export interface EventDefInfo {
-    definition: EventDefinition;
-    artifact: ArtifactInfo;
-    args: Array<[string, TypeNode, boolean]>;
 }
 
 /**

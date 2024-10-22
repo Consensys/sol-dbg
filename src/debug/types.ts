@@ -3,7 +3,7 @@ import * as sol from "solc-typed-ast";
 import { FunctionDefinition } from "solc-typed-ast";
 import { HexString, UnprefixedHexString } from "../artifacts";
 import { ImmMap } from "../utils";
-import { ContractInfo } from "./artifact_manager";
+import { ArtifactInfo, ContractInfo } from "./artifact_manager";
 import { EVMOpInfo } from "./opcodes";
 
 export interface DeployedContractInfo {
@@ -171,8 +171,14 @@ export interface EventDesc {
     topics: Uint8Array[];
 }
 
+export interface EventDefInfo {
+    definition: sol.EventDefinition;
+    artifact: ArtifactInfo;
+    args: Array<[string, sol.TypeNode, boolean]>;
+}
+
 export interface DecodedEventDesc {
-    name: string;
+    def: EventDefInfo;
     args: Array<[string, any]>;
 }
 
