@@ -430,6 +430,34 @@ describe("Local tests", () => {
                             }
                         });
                     }
+
+                    if (forAny(testJSON.steps, (step) => step.decodedReturns !== undefined)) {
+                        it("Decoded returns in TX are correct", async () => {
+                            for (let i = 0; i < testJSON.steps.length; i++) {
+                                const curStep = testJSON.steps[i];
+
+                                if (curStep.decodedReturns === undefined) {
+                                    continue;
+                                }
+
+                                const trace = traces[i];
+
+                                const actualDecodedReturns: any[][] = trace
+                                    .filter(
+                                        (step) =>
+                                            step.retInfo &&
+                                            step.retInfo.decodedReturnData !== undefined
+                                    )
+                                    .map((step) =>
+                                        sanitizeBigintFromJson(
+                                            (step.retInfo as any).decodedReturnData
+                                        )
+                                    );
+
+                                expect(actualDecodedReturns).toEqual(curStep.decodedReturns);
+                            }
+                        });
+                    }
                 });
             }
         });

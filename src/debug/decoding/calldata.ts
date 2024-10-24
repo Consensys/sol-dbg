@@ -283,6 +283,15 @@ function cd_decodeTuple(
         } catch (e) {
             return undefined;
         }
+    } else if (origType instanceof TupleType) {
+        const origNonNullTypes = origType.elements.filter((t) => t !== null) as TypeNode[];
+        assert(
+            abiType.elements.length === origNonNullTypes.length,
+            `Unexpected mismatch between abi tuple {0} and original tuple {1} in decoding`,
+            abiType,
+            origType
+        );
+        origElementTs = origNonNullTypes;
     } else if (origType !== undefined) {
         throw new Error(
             `Unexpected original type ${origType.pp()} for abi tuple type ${abiType.pp()}`
@@ -321,7 +330,7 @@ function cd_decodeTuple(
         tupleRes.push(elVal);
     }
 
-    if (origType === undefined || origType instanceof ArrayType) {
+    if (origType === undefined || origType instanceof ArrayType || origType instanceof TupleType) {
         return [tupleRes, size];
     }
 

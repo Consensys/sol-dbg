@@ -188,6 +188,48 @@ export function checkAddrOoB(offset: bigint | number, buf: Uint8Array): number |
     return numOff;
 }
 
+/**
+ * Try to read memory from offset start to start+len. If the access is OoB return undefined
+ */
+export function readMem(
+    start: Uint8Array | bigint | number,
+    length: Uint8Array | bigint | number,
+    mem: Uint8Array
+): Uint8Array | undefined {
+    if (start instanceof Uint8Array) {
+        start = bigEndianBufToNumber(start);
+    } else if (typeof start === "bigint") {
+        start = bigIntToNum(start);
+    }
+
+    if (length instanceof Uint8Array) {
+        length = bigEndianBufToNumber(length);
+    } else if (typeof length === "bigint") {
+        length = bigIntToNum(length);
+    }
+
+    if (start < 0 || start + length > mem.length) {
+        return undefined;
+    }
+
+    return mem.slice(start, start + length);
+}
+
+/**
+ * Try to read memory from offset start to start+len. If the access is OoB assert false.
+ */
+export function mustReadMem(
+    start: Uint8Array | bigint | number,
+    length: Uint8Array | bigint | number,
+    mem: Uint8Array
+): Uint8Array {
+    const res = readMem(start, length, mem);
+
+    assert(res !== undefined, `Unexpected OoB access at {0} of len {1}`, start, length);
+
+    return res;
+}
+
 export function wordToAddress(word: Uint8Array): Address {
     return new Address(word.slice(12));
 }
@@ -216,14 +258,19 @@ export function bigEndianBufToBigint(buf: Uint8Array): bigint {
  * Convert a big-endian 2's complement encoding to a number. Throws an error if the value doesn't fit.
  */
 export function bigEndianBufToNumber(buf: Uint8Array): number {
-    const bigintRes = bigEndianBufToBigint(buf);
+    return bigIntToNum(bigEndianBufToBigint(buf));
+}
+
+/**
+ * Convert a bigint to a number, fail if its OoB
+ */
+export function bigIntToNum(n: bigint): number {
     assert(
-        bigintRes >= BigInt(Number.MIN_SAFE_INTEGER) &&
-            bigintRes <= BigInt(Number.MAX_SAFE_INTEGER),
-        `Bigint ${bigintRes} doesn't fit in number`
+        n >= BigInt(Number.MIN_SAFE_INTEGER) && n <= BigInt(Number.MAX_SAFE_INTEGER),
+        `Bigint ${n} doesn't fit in number`
     );
 
-    return Number(bigintRes);
+    return Number(n);
 }
 
 export function getFunctionSelector(
@@ -279,6 +326,27 @@ export function zip3<T1, T2, T3>(a: T1[], b: T2[], c: T3[]): Array<[T1, T2, T3]>
 
     for (let i = 0; i < a.length; i++) {
         res.push([a[i], b[i], c[i]]);
+    }
+
+    return res;
+}
+
+export function stackTop<T>(stack: T[]): T {
+    return stackInd(stack, 0);
+}
+
+/**
+ * Index into a stack. 0 is the top of the stack.
+ */
+export function stackInd<T>(stack: T[], i: number): T {
+    assert(stack.length > i, `Not enough entries ({0}) in stack!`, i);
+    return stack[stack.length - 1 - i];
+}
+
+export function repeat<T>(x: T, n: number): T[] {
+    const res: T[] = [];
+    for (let i = 0; i < n; i++) {
+        res.push(x);
     }
 
     return res;

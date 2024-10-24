@@ -15,4 +15,5 @@ export * from "./ext_stack";
 export * from "./int_stack";
 export * from "./keccak256_invert";
 export * from "./op";
+export * from "./ret_info";
 export * from "./source";

@@ -1,6 +1,6 @@
 import { InterpreterStep } from "@ethereumjs/evm";
 import { VM } from "@ethereumjs/vm";
-import { bigEndianBufToBigint, bigEndianBufToNumber } from "../../../utils";
+import { bigEndianBufToBigint, mustReadMem } from "../../../utils";
 import { OPCODES } from "../../opcodes";
 import { BasicStepInfo } from "./basic_info";
 
@@ -81,9 +81,11 @@ export function addKeccakInvertInfo<T extends object & BasicStepInfo>(
     const res = bigEndianBufToBigint(state.evmStack[state.evmStack.length - 1]);
     const lastStepTop = lastStep.evmStack.length - 1;
 
-    const off = bigEndianBufToNumber(lastStep.evmStack[lastStepTop]);
-    const size = bigEndianBufToNumber(lastStep.evmStack[lastStepTop - 1]);
-    const preImage = lastStep.memory.slice(off, off + size);
+    const preImage = mustReadMem(
+        lastStep.evmStack[lastStepTop],
+        lastStep.evmStack[lastStepTop - 1],
+        lastStep.memory
+    );
 
     return {
         keccak: {

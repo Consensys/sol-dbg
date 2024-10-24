@@ -207,6 +207,14 @@ export interface StepVMState {
  */
 export interface StepState extends StepVMState {
     stack: ExternalFrame[];
+    retInfo?: {
+        // Step at which the call that just returned started
+        callStartStep: number;
+        // Raw returned data
+        rawReturnData: Uint8Array;
+        // Decoded returned data (if ast info is available)
+        decodedReturnData?: any[];
+    };
     intStack: InternalCallFrame[];
     src: sol.DecodedBytecodeSourceMapEntry | undefined;
     astNode: sol.ASTNode | undefined;

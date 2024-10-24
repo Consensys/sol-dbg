@@ -1,6 +1,6 @@
 import { InterpreterStep } from "@ethereumjs/evm";
 import { VM } from "@ethereumjs/vm";
-import { bigEndianBufToNumber } from "../../../utils";
+import { mustReadMem, stackInd, stackTop } from "../../../utils";
 import { decodeEvent } from "../../abi";
 import { IArtifactManager } from "../../artifact_manager";
 import { DecodedEventDesc, EventDesc } from "../../types";
@@ -26,11 +26,9 @@ export async function addEventInfo<T extends object & BasicStepInfo>(
     // Finally check if an event is being emitted for this step
     if (step.opcode.name.startsWith("LOG")) {
         const stack = state.evmStack;
-        const off = bigEndianBufToNumber(stack[stack.length - 1]);
-        const size = bigEndianBufToNumber(stack[stack.length - 2]);
 
         const nTopics = (step.opcode.name[3] as any) - ("0" as any);
-        const payload = state.memory.slice(off, off + size);
+        const payload = mustReadMem(stackTop(stack), stackInd(stack, 1), state.memory);
 
         emittedEvent = {
             payload,

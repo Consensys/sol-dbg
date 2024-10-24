@@ -12,6 +12,7 @@ import {
 import { addEventInfo } from "./transformers/events";
 import { addExternalFrame } from "./transformers/ext_stack";
 import { addInternalFrameInfo } from "./transformers/int_stack";
+import { addReturnInfo } from "./transformers/ret_info";
 import { addSource } from "./transformers/source";
 
 export class SolTxDebugger extends MapOnlyTracer<StepState> {
@@ -31,7 +32,8 @@ export class SolTxDebugger extends MapOnlyTracer<StepState> {
             this.artifactManager,
             tx
         );
-        const source = await addSource(vm, step, extFrameInfo);
+        const retInfo = await addReturnInfo(vm, step, extFrameInfo, trace, this.artifactManager);
+        const source = await addSource(vm, step, retInfo);
         const intStack = await addInternalFrameInfo(
             vm,
             step,

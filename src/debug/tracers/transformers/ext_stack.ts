@@ -9,7 +9,7 @@ import {
     HexString,
     UnprefixedHexString
 } from "../../../artifacts";
-import { bigEndianBufToNumber, wordToAddress, ZERO_ADDRESS } from "../../../utils";
+import { mustReadMem, stackTop, wordToAddress, ZERO_ADDRESS } from "../../../utils";
 import { buildMsgDataViews, findMethodBySelector } from "../../abi";
 import { ContractInfo, IArtifactManager } from "../../artifact_manager";
 import { createsContract, increasesDepth, OPCODES } from "../../opcodes";
@@ -28,8 +28,7 @@ export interface ExternalFrameInfo {
 }
 
 export function topExtFrame(arg: ExternalFrameInfo): ExternalFrame {
-    assert(arg.stack.length > 0, `Empty stack!`);
-    return arg.stack[arg.stack.length - 1];
+    return stackTop(arg.stack);
 }
 
 export function getContractInfo(step: ExternalFrameInfo): ContractInfo | undefined {
@@ -175,12 +174,14 @@ function decodeCall(step: BasicStepInfo): [Address, Address, Uint8Array] {
     const argSizeStackOff = argStackOff + 1;
 
     const receiverArg = wordToAddress(step.evmStack[stackTop - 1]);
-    const argOff = bigEndianBufToNumber(step.evmStack[stackTop - argStackOff]);
-    const argSize = bigEndianBufToNumber(step.evmStack[stackTop - argSizeStackOff]);
 
     const receiver = op.opcode === OPCODES.DELEGATECALL ? step.address : receiverArg;
     const codeAddr = receiverArg;
-    const msgData = step.memory.slice(argOff, argOff + argSize);
+    const msgData = mustReadMem(
+        step.evmStack[stackTop - argStackOff],
+        step.evmStack[stackTop - argSizeStackOff],
+        step.memory
+    );
 
     return [receiver, codeAddr, msgData];
 }
@@ -251,9 +252,11 @@ export async function addExternalFrame<T extends object & BasicStepInfo>(
 
         if (createsContract(lastOp)) {
             // Contract creation call
-            const off = bigEndianBufToNumber(lastStep.evmStack[lastStackTop - 1]);
-            const size = bigEndianBufToNumber(lastStep.evmStack[lastStackTop - 2]);
-            const creationBytecode = lastStep.memory.slice(off, off + size);
+            const creationBytecode = mustReadMem(
+                lastStep.evmStack[lastStackTop - 1],
+                lastStep.evmStack[lastStackTop - 2],
+                lastStep.memory
+            );
 
             extFrame = makeCreationFrame(
                 lastStep.address,

@@ -53,6 +53,8 @@ export interface TestStep extends TxDesc {
         name: string;
         args: Array<[string, any]>;
     }>;
+    // Optional sequence of the decoded return results for this call
+    decodedReturns?: any[][];
 }
 
 export interface TestCase extends Scenario {
