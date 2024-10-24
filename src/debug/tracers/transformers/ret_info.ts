@@ -10,7 +10,7 @@ import { mustReadMem, repeat, stackInd, stackTop } from "../../../utils";
 import { IArtifactManager } from "../../artifact_manager";
 import { cd_decodeValue } from "../../decoding";
 import { OPCODES } from "../../opcodes";
-import { DataLocationKind } from "../../types";
+import { DataLocationKind, FrameKind } from "../../types";
 import { BasicStepInfo } from "./basic_info";
 import { ExternalFrameInfo, topExtFrame } from "./ext_stack";
 
@@ -56,6 +56,18 @@ export async function addReturnInfo<T extends object & BasicStepInfo & ExternalF
                   lastStep.memory
               )
             : new Uint8Array(0);
+
+    // Special case: For creation frames we know that the consturctor doesn't "return anything" at the Solidity level
+    if (lastFrame.kind === FrameKind.Creation) {
+        return {
+            ...state,
+            retInfo: {
+                callStartStep,
+                rawReturnData,
+                decodedReturnData: []
+            }
+        };
+    }
 
     if (
         !(

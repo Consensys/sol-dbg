@@ -2859,7 +2859,9 @@ export const MnemonicToOpcodeMap = new Map<string, number>(
 );
 
 // Add KECCAK256 as alias for SHA3
-MnemonicToOpcodeMap.set("KECCAK256", 0x20);
+MnemonicToOpcodeMap.set("KECCAK256", OPCODES.SHA3);
+// Add PREVRANDAO as alias for DIFFICULTY
+MnemonicToOpcodeMap.set("PREVRANDAO", OPCODES.DIFFICULTY);
 
 export function getOpInfo(arg: string | number): EVMOpInfo {
     if (typeof arg === "number") {
