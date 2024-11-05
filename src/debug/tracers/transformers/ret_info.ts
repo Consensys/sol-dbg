@@ -2,6 +2,7 @@ import { InterpreterStep } from "@ethereumjs/evm";
 import { VM } from "@ethereumjs/vm";
 import {
     FunctionDefinition,
+    FunctionType,
     StateVariableVisibility,
     TupleType,
     VariableDeclaration
@@ -88,10 +89,23 @@ export async function addReturnInfo<T extends object & BasicStepInfo & ExternalF
     }
 
     const infer = artifactManager.infer(lastFrame.info.artifact.compilerVersion);
-    const type =
-        lastFrame.callee instanceof FunctionDefinition
-            ? infer.funDefToType(lastFrame.callee)
-            : infer.getterFunType(lastFrame.callee);
+    let type: FunctionType;
+
+    try {
+        type =
+            lastFrame.callee instanceof FunctionDefinition
+                ? infer.funDefToType(lastFrame.callee)
+                : infer.getterFunType(lastFrame.callee);
+    } catch {
+        return {
+            ...state,
+            retInfo: {
+                callStartStep,
+                rawReturnData,
+                decodedReturnData: []
+            }
+        };
+    }
 
     if (type.returns.length === 0) {
         return {
@@ -106,7 +120,20 @@ export async function addReturnInfo<T extends object & BasicStepInfo & ExternalF
 
     const encVer = lastFrame.info.artifact.abiEncoderVersion;
     const origType = new TupleType(type.returns);
-    const abiType = new TupleType(type.returns.map((t) => infer.toABIEncodedType(t, encVer)));
+    let abiType: TupleType;
+
+    try {
+        abiType = new TupleType(type.returns.map((t) => infer.toABIEncodedType(t, encVer)));
+    } catch {
+        return {
+            ...state,
+            retInfo: {
+                callStartStep,
+                rawReturnData,
+                decodedReturnData: []
+            }
+        };
+    }
 
     const decodeRes = cd_decodeValue(
         abiType,
